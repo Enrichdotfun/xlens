@@ -57,7 +57,7 @@ async function fetchRealPosts(handle) {
   );
   if (!tw.ok) throw new Error(`fetch tweets ${tw.status}`);
   const data = await tw.json();
-  const tweets = (data.tweets || []).filter(t => t.type === 'tweet').slice(0, 18);
+  const tweets = (data?.data?.tweets || data?.tweets || []).filter(t => t.type === 'tweet').slice(0, 18);
   if (!tweets.length) throw new Error('no tweets found');
 
   const author = tweets[0].author || {};
