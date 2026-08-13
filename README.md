@@ -43,6 +43,11 @@ The full extracted dataset with citations is in [`data/rules.json`](data/rules.j
 
 - `site/` — the static web app (no build step, no dependencies)
 - `data/rules.json` — every weight, boost, penalty, filter, and demotion rule we extracted, each citing `file:line` in the upstream repo
+- `docs/` — the full research notes from reading the codebase:
+  - [01 — How ranking works](docs/01-ranking.md): the scoring formula, all weights, rescoring, filters
+  - [02 — How discovery works](docs/02-discovery.md): retrieval, SimClusters communities, what your first hours decide
+  - [03 — Visibility & demotion](docs/03-visibility-and-demotion.md): the "shadowban" mechanics, URL reputation, account escalation
+  - [04 — Account signals](docs/04-account-signals.md): credibility PageRank, bot detection, LLM review
 
 ## Honest fine print
 

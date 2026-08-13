@@ -79,7 +79,7 @@
     <a class="title" href="/">Enrich The trenches.</a>
     <nav aria-label="Primary navigation">
       <a href="https://x.com/EnrichFun" target="_blank" rel="noreferrer">X</a>
-      <a href="https://github.com/enrichthetrenches/xlens" target="_blank" rel="noreferrer">Github</a>
+      <a href="https://github.com/Enrichdotfun/xlens" target="_blank" rel="noreferrer">Github</a>
     </nav>
   </div>
 
@@ -107,13 +107,24 @@
   <p class="hint">Doing this yourself means wading through 26 services of production Rust, Scala, and JAX.<br>We hand-verified every number at its exact line — and every claim below links to the source so you can check us.</p>
   <div class="chips">
     <span class="chip" onclick="preset('AI startups')">AI startups</span>
-    <span class="chip" onclick="preset('fitness')">fitness</span>
     <span class="chip" onclick="preset('crypto')">crypto</span>
+    <span class="chip" onclick="preset('fitness')">fitness</span>
     <span class="chip" onclick="preset('indie hacking')">indie hacking</span>
     <span class="chip" onclick="preset('design')">design</span>
+    <span class="chip" onclick="preset('food')">food</span>
+    <span class="chip" onclick="preset('sports')">sports</span>
+    <span class="chip" onclick="preset('music')">music</span>
+    <span class="chip" onclick="preset('travel')">travel</span>
+    <span class="chip" onclick="preset('politics')">news</span>
   </div>
 
   <div id="results">
+    <section id="s-verdict">
+      <h2 id="verdictTitle"></h2>
+      <p class="sub">How the ranking system treats your specific niche.</p>
+      <div class="card" id="verdictCard"></div>
+    </section>
+
     <section id="s-weights">
       <h2>What the algorithm actually pays for</h2>
       <p class="sub">Your post's score = predicted probability of each action × these exact weights, straight from <code>home-mixer/params/param.rs</code>.</p>
@@ -190,30 +201,138 @@ const WEIGHTS = [
   {name:"Block",           v:-31.2, src:"home-mixer/params/param.rs#L430"},
 ];
 
-function planFor(topic){
+// ---- Topic engine: each niche gets its own verdict, examples, warnings, formats ----
+const NICHES = {
+  ai: {label:"AI & tech", keys:["ai","artificial intelligence","machine learning","ml","llm","gpt","claude","tech","software","programming","coding","developer","dev","saas","startup tech","data science","robotics","agents"],
+    verdict:"AI/tech is one of the most competitive niches on X — but also the most save-and-share driven: technical breakdowns are classic copy-link (+20) and DM-share (+5) material, and screenshots of code or benchmarks earn silent dwell credit the model explicitly tracks. One warning unique to your niche: X's enforcement rules literally label accounts that post mostly AI-generated content ('llm_slop_user') with a 30-day account-wide recommendations ban — in the AI niche, sounding like AI is a demotion risk.",
+    formats:"Screenshots of code/results (dwell + photo-expand), threads that end in a saveable summary, 15–60s screen-recording demos (video credit starts at 10s).",
+    plan:{save:'"Every AI tool I actually use daily, and what each replaced:"', convo:'"Which model do you actually ship with in production — and what made you switch?"', quote:'"Prompt engineering is dead. Context engineering killed it."', dm:'"This week\'s model release quietly broke every benchmark nobody talks about. Here\'s what the labs aren\'t saying:"', follow:'"I read every AI paper that matters so you don\'t have to. This week\'s 3 in plain English:"', original:'Turn your best technical reply into a standalone explainer post.', video:'A 45s screen recording: "watch me build X with one prompt" — demo beats description.'},
+    killers:[{t:"Sounding like AI slop", d:"Accounts that mostly post AI-generated text get labeled 'llm_slop_user' — a 30-day account-wide recommendations ban. Gemma-based models score every notable post for 'slop'. Write like a human with opinions.", src:"abuse-enforcement-service/service-lib/rules/enforcement_user.yaml#L51"},
+     {t:"Link-first launch posts", d:"Dropping your repo/product link in the main post earns +0.2 per click — the weakest signal. Demo in the post, link in the first reply.", src:"home-mixer/params/param.rs#L310"}]},
+  crypto: {label:"crypto & web3", keys:["crypto","bitcoin","btc","eth","ethereum","solana","sol","web3","defi","nft","memecoin","meme coin","trading crypto","altcoin","token","blockchain","degen"],
+    verdict:"Crypto is the single most enforcement-heavy niche in the codebase. URL-reputation rules hit hardest here: one link to a domain flagged UNSAFE gets the post search-blacklisted and de-amplified — retroactively across every post that ever shared it — and pinning a tweet with a bad link spam-flags your whole account for a week. Coordinated shilling is explicitly modeled: duplicate-text detection (copypasta), retweet-ring and reply-spam heads in the bot classifier, and engagement-farming as an LLM-detected policy category. The way to win is being the signal in a sea of spam: original analysis is scarce, so it collects the replies, quotes, and DM-shares the ranker pays 10× for.",
+    formats:"Charts and on-chain data screenshots (dwell), contrarian analysis posts (quotes), 'what actually happened' explainers after big moves (DM-shares).",
+    plan:{save:'"The 7 wallet-security mistakes that will eventually drain you (checklist):"', convo:'"What\'s your genuine bull case that you\'re afraid to post? I\'ll go first:"', quote:'"90% of \'alpha\' accounts are exit liquidity marketing. Here\'s how to tell:"', dm:'"Everyone\'s watching the price. Nobody\'s watching this wallet. Thread:"', follow:'"I read the contracts so you don\'t have to. One audit-level breakdown a week."', original:'Turn your best market take into an original post — replies and RTs never reach non-followers.', video:'A 30s chart walkthrough with your actual thesis — longer than 10s or video credit is zero.'},
+    killers:[{t:"Token/project links", d:"One UNSAFE-verdict URL = search blacklist + do-not-amplify + malicious-URL labels, retroactive across all posts with that link. Pinned posts with bad links spam-flag your account for 7 days. Never link sketchy domains; use known explorers.", src:"botmaker-rules/scarecrow/bot/rtf_tweets_on_unsafe_verdict.bot#L19"},
+     {t:"Shill-thread copypasta", d:"Duplicate-text clustering labels matching posts COPYPASTA_SPAM. Coordinated amplification is one of the 7 bot behaviors the transformer detects — engagement pods get the whole ring flagged.", src:"botmaker-rules/scarecrow/bot/BBQDuplicateTextProd.bot#L37"},
+     {t:"'Like & RT for airdrop'", d:"Engagement-farming is an explicit LLM-detected spam violation (SpamEngagementFarming) — and extreme report-per-like ratios silently kill your notifications for a week.", src:"grox/flows/ptos/state.py#L11"}]},
+  business: {label:"business & indie hacking", keys:["indie hacking","indie hacker","business","entrepreneur","marketing","startup","founder","build in public","ecommerce","e-commerce","agency","freelance","solopreneur","smma","copywriting","sales","growth"],
+    verdict:"Build-in-public content is structurally favored: real numbers and lessons are quote-bait (+5) and DM-share material ('have you seen this guy's MRR?'), and the follow-trigger archetype (+4 per predicted follow) works better here than any other niche because your account IS the story. The trap is that this niche invented engagement-bait — 'repost if you agree', fake giveaways, recycled listicles — and every one of those patterns is now an explicit LLM-detected spam category with the receipts in the codebase.",
+    formats:"Revenue/metric screenshots (dwell + quotes), 'what I learned' postmortems (saves), specific numbers in hooks — '$4,320' outperforms 'four figures'.",
+    plan:{save:'"Everything I\'d do to go 0→$10k/mo again, in order (save this):"', convo:'"What\'s a business \'best practice\' you completely ignore and still win?"', quote:'"Your product isn\'t failing because of marketing. It\'s failing because 10 people use it and 0 love it."', dm:'"My competitor does $80k/mo with a worse product. I finally figured out why — it\'s not what you think:"', follow:'"Month 14 of building in public: the real numbers, the mistakes, everything. I post the update every Friday."', original:'Turn your best customer conversation this week into an original story post.', video:'A 40s Loom-style walkthrough of one real tactic that worked, with the numbers on screen.'},
+    killers:[{t:"'Repost if you agree' engagement bait", d:"SpamEngagementBaiting is a named LLM-detected policy violation. The classifier reads every post that gains traction — the old growth-hacks are now labeled behavior.", src:"grox/flows/ptos/state.py#L11"},
+     {t:"Recycled viral listicles", d:"Duplicate-text detection labels copy-paste content COPYPASTA_SPAM, and near-duplicate takes get demoted by the feed's similarity rerank (DPP) even when original.", src:"botmaker-rules/scarecrow/bot/BBQDuplicateTextProd.bot#L37"},
+     {t:"Newsletter-link-first posts", d:"Link clicks weigh +0.2 — 25× less than a reply. Give the full value in the post; link in reply. Yes, really.", src:"home-mixer/params/param.rs#L310"}]},
+  fitness: {label:"fitness & training", keys:["fitness","gym","lifting","bodybuilding","workout","training","running","calisthenics","weight loss","strength","crossfit","yoga","physique"],
+    verdict:"Fitness is a visual, save-heavy niche: programs and form breakdowns are archetypal copy-link (+20) content, and video demos earn per-second dwell credit. But fitness sits closer to the NSFW classifiers than almost any other mainstream niche: media models auto-label images at ≥0.95 confidence, physique photos are exactly the borderline case, and 3 NSFW-labeled posts out of your last 5 flags your whole account for 7 days — killing all non-follower reach. Even an edgy avatar or banner alone triggers an account-wide label. Keep the content athletic, not thirst-trap, and the algorithm is your friend.",
+    formats:"Form-check and technique videos 15–60s (dwell), program cards people screenshot (the model tracks screenshots), before/after with the actual protocol (saves + DMs).",
+    plan:{save:'"The exact push/pull/legs split I\'d give a beginner, sets and reps included (save this):"', convo:'"What\'s one exercise you\'ve completely cut from your training and why?"', quote:'"Progressive overload is overrated for naturals past year two. Recovery is the bottleneck."', dm:'"Everyone gets shoulder pain from benching wrong. This 20-second fix is what PTs charge for:"', follow:'"Natural lifter, 10 years, no BS. One evidence-based breakdown a week — this week: why your arms won\'t grow."', original:'Turn your most-asked DM question into an original post with the full answer.', video:'A 30s side-by-side: "this is why your deadlift hurts your back" — wrong form vs right form.'},
+    killers:[{t:"Borderline physique content", d:"Image models auto-label NSFW at ≥0.95 confidence with no human review below ~25k followers. 3 of your last 5 posts labeled = whole account flagged 7 days, zero non-follower reach. An edgy avatar/banner alone does the same.", src:"safety-label-user-agg/postToUserLabelRules.strato#L360"},
+     {t:"Supplement affiliate links", d:"Low-quality link verdicts + @-mentioning non-followers = spam label. Affiliate-heavy accounts pattern-match to exactly what the URL rules hunt.", src:"botmaker-rules/scarecrow/bot/LQ_Tweets_With_LQ_URL_Verdict_At_Mention_To_NonFollower.bot#L46"}]},
+  design: {label:"design & creative", keys:["design","ui","ux","graphic design","product design","figma","branding","illustration","typography","web design","3d","motion design","art"],
+    verdict:"Design wins on the signals nobody else can earn: photo expands, screenshots, and long dwell on beautiful work — all explicitly tracked. Before/after redesigns are quote-magnets, and 'steal this' resource posts are copy-link gold (+20). Your structural advantage: the feed's diversity rerank (DPP) demotes similar-looking content, and original visual work is by definition dissimilar. Your risk is low on moderation and high on invisibility — portfolio links earn +0.2 while the work itself, posted natively, earns dwell every second someone stares at it.",
+    formats:"Native images, never links-to-images. Before/after sliders as 2-image posts (expand + dwell), process videos 15s+ (per-second credit), resource drops (saves).",
+    plan:{save:'"12 free fonts that look expensive, with the pairings (save this):"', convo:'"What\'s a design trend everyone loves that you think ages terribly?"', quote:'"Whitespace isn\'t empty space you failed to fill. It\'s the most expensive-looking pixel on the screen."', dm:'"I redesigned [famous app]\'s worst screen in 2 hours. The before/after is brutal:"', follow:'"I break down one world-class interface every week — what makes it work, in plain English. This week: Linear."', original:'Post the redesign AS images natively — a Dribbble/Behance link earns 100× less than the work itself.', video:'A 30s screen recording of one micro-interaction you built, looped.'},
+    killers:[{t:"Portfolio-link posts", d:"'New work, link below' earns +0.2 per click. The same shots posted natively earn photo-expands and dwell per viewer. Post the work; link in reply.", src:"home-mixer/params/param.rs#L310"},
+     {t:"Posting the same style repeatedly", d:"The feed reranks for diversity — posts too visually similar to what's already selected get demoted (DPP, theta 0.65). Vary format across a day: shots, process, opinion.", src:"vm-ranker/dpp.rs#L94"}]},
+  gaming: {label:"gaming", keys:["gaming","game","esports","streamer","twitch","fortnite","league of legends","valorant","minecraft","cod","fps","rpg","speedrun","game dev","gamedev"],
+    verdict:"Gaming is the tightest-knit community structure on X, which is exactly what SimClusters rewards: your audience's interests are concentrated, so your posts inherit a clean community signal from early likers and travel efficiently to similar fans. Clips are your weapon — video credit starts at 10 seconds and dwell accrues per second — but the clip meta-game has a catch: reposting others' clips is copypasta/duplicate territory, and 'RT to enter' giveaways are textbook engagement-farming. Original clips, hot takes about the meta, and genuinely funny moments are what the machine pays for.",
+    formats:"Original clips 15–45s with the payoff in the first 2 seconds, patch-note hot takes (quotes + replies), tier lists as images (screenshot bait — tracked).",
+    plan:{save:'"Settings that actually matter for [game] performance, tested — the full list:"', convo:'"What\'s the most overrated game of the decade? Wrong answers only… actually no, real answers."', quote:'"The skill gap isn\'t dead. Your patience for learning is."', dm:'"This is the most broken interaction in the patch and nobody\'s talking about it:"', follow:'"I test every patch so you don\'t have to. One no-BS meta breakdown per week."', original:'Clip YOUR moment — reposted clips are duplicate-content territory; original clips are yours alone.', video:'A 20s clip, payoff first, context in the caption — the hook IS the first frame.'},
+    killers:[{t:"'RT + follow to win' giveaways", d:"Engagement-farming is an explicit LLM-detected spam category, and follow-churn is one of the 7 bot behaviors the behavioral transformer models. Giveaway-grown audiences also wreck your early-liker community signal.", src:"grox/flows/ptos/state.py#L11"},
+     {t:"Reposting viral clips", d:"Duplicate content gets labeled and downranked, and the diversity rerank demotes what the feed already has. Your 200-viewer original moment beats a million-view repost.", src:"botmaker-rules/scarecrow/bot/BBQDuplicateTextProd.bot#L37"}]},
+  finance: {label:"finance & investing", keys:["finance","investing","stocks","stock market","options","trading","personal finance","money","wealth","dividends","real estate","retirement","economy","macro"],
+    verdict:"Finance content lives on saves and DM-shares — 'send this to someone who needs it' is the highest-value reaction in the codebase (+20 copy-link, +5 DM). But finance also has the highest report-per-disagreement rate of any mainstream niche: one report erases ~468 likes, bad-advice accusations draw reports, and 'IllegalAndRegulatedBehaviors' is a named LLM policy category watching for scammy financial claims. The winning formula is education over prediction: explainers get saved; price calls get reported by whoever loses money.",
+    formats:"Frameworks and checklists (saves), 'how X actually works' explainers (DM-shares), annotated charts as native images (dwell).",
+    plan:{save:'"The order of operations for every dollar you earn (the flowchart banks don\'t show you):"', convo:'"What\'s the best financial decision you made before 30 — and the worst?"', quote:'"Your savings rate matters more than your returns until you have $100k. The math is not close."', dm:'"Everyone talks about compound interest. Nobody shows you this table — send it to someone who needs it:"', follow:'"I explain one money concept per week like you\'re smart but nobody ever taught you. This week: tax-loss harvesting."', original:'Turn the question your friends always ask you into the definitive explainer post.', video:'A 45s whiteboard-style breakdown of one concept, numbers on screen.'},
+    killers:[{t:"Price predictions and 'guaranteed' returns", d:"Reports weigh −234 and finance draws them like no other niche — every confident call that ages badly is a report generator. Scammy financial claims fall under a named LLM policy category.", src:"home-mixer/params/param.rs#L442"},
+     {t:"Course/newsletter funnels in the post", d:"Link clicks earn +0.2, low-quality link verdicts get spam-labeled, and 'DM me for the strategy' pattern-matches engagement-farming. Teach in the post; the funnel goes in your bio.", src:"botmaker-rules/scarecrow/bot/LQ_Tweets_With_LQ_URL_Verdict_At_Mention_To_NonFollower.bot#L46"}]},
+  food: {label:"food & cooking", keys:["food","cooking","recipes","recipe","baking","chef","meal prep","nutrition","restaurant","foodie","cuisine","kitchen"],
+    verdict:"Food is a pure save-and-send niche: recipes are the canonical copy-link content (+20 — people literally save them to cook later), and 'we should make this' DM-shares (+5) are the natural reaction to good food content. Process videos hold attention like almost nothing else — dwell credit accrues every second someone watches your pasta pull. It's also one of the safest niches moderation-wise; your only real enemies are posting links instead of content, and the 48-hour lifespan that makes consistency matter more than any single viral dish.",
+    formats:"The finished dish as the first frame, then process. Recipe in the post text or image, never a blog link. 20–60s process videos (per-second dwell).",
+    plan:{save:'"5-ingredient dinners that actually taste like effort — the full week, with quantities:"', convo:'"What\'s a \'wrong\' food combination you\'ll defend with your life?"', quote:'"Salt isn\'t a flavor. It\'s the volume knob for every other flavor in the pan."', dm:'"This 20-minute pasta needs to be sent to someone you\'d cook for:"', follow:'"One restaurant-technique-made-easy per week. This week: why your steak is grey and theirs isn\'t."', original:'Post the recipe IN the post — a blog link earns +0.2 while the recipe text earns saves.', video:'A 30s process video: the sizzle, the pull, the first cut — sound on.'},
+    killers:[{t:"Blog-link recipes", d:"'Full recipe on my blog 👇' earns +0.2 per click. The recipe in the post earns +20 copy-link saves. This single change is most food accounts' biggest unlock.", src:"home-mixer/params/param.rs#L310"},
+     {t:"Reposting viral food videos", d:"Duplicate content detection + the feed's similarity rerank bury reposts. Your imperfect original kitchen beats a stolen viral clip.", src:"botmaker-rules/scarecrow/bot/BBQDuplicateTextProd.bot#L37"}]},
+  travel: {label:"travel", keys:["travel","backpacking","digital nomad","vacation","destinations","flights","hotels","van life","expat","adventure","tourism"],
+    verdict:"Travel content wins on saves and sends: itineraries and 'how I did this for $X' breakdowns are copy-link gold (+20), and 'we should go here' is a DM-share engine (+5). Photos earn expands and dwell. The niche's structural challenge is community mush — travel audiences are scattered across interests, so your early-liker community signal (which decides where your post travels) stays muddy unless you niche down: budget travel, solo female travel, points/miles, one region. Specific beats beautiful.",
+    formats:"Native photo sets (expands), itinerary cards people screenshot (tracked), cost-breakdown posts (saves), 15–45s location videos.",
+    plan:{save:'"10 days in Japan for under $1,500 — the exact itinerary, with every cost:"', convo:'"What\'s the most overrated destination you\'ve been to — and where should people go instead?"', quote:'"The best travel hack is going where your money is strong, not where the photos are famous."', dm:'"This place gets 1% of the tourists of its famous neighbor and it\'s better. Send this to your travel person:"', follow:'"One under-the-radar destination per week with the full how-to. This week: the Balkans\' best-kept secret."', original:'Turn your best travel story into a post — the disaster stories outperform the sunsets.', video:'A 30s "this is what $40/night gets you in [place]" walkthrough.'},
+    killers:[{t:"Affiliate/booking links up front", d:"Link clicks weigh +0.2 and low-quality affiliate domains risk spam verdicts. Itinerary in the post, links in reply.", src:"home-mixer/params/param.rs#L310"},
+     {t:"Generic 'wanderlust' content", d:"Scattered engagement = muddy community signal (your post's audience is computed from early likers, 8h half-life). Pretty-but-generic gets likes from everyone and reaches no one.", src:"simclusters/simclusters_v2/summingbird/storm/TweetJob.scala#L59"}]},
+  fashion: {label:"fashion & beauty", keys:["fashion","style","outfit","beauty","makeup","skincare","streetwear","clothing","aesthetic","grooming","sneakers"],
+    verdict:"Fashion is image-native — expands, screenshots, and dwell are your currency, and 'where is this from' replies are algorithmic gold (+5 each). Two codebase realities to respect: like fitness, you're near the NSFW image classifiers (auto-label at ≥0.95 confidence, 3-of-5 posts = 7-day account flag, and an edgy avatar/banner alone limits your whole account) — and affiliate-link-heavy posting pattern-matches the spam URL rules. Fit pics and breakdowns win; link-stuffed hauls get quietly buried.",
+    formats:"Fit pics as native images (expand + dwell), piece-by-piece breakdown in text (the 'where from' reply engine), 15–30s styling videos.",
+    plan:{save:'"How to build a complete wardrobe with 12 pieces — the actual list, with budget options:"', convo:'"What\'s one trend you\'re begging to die this year?"', quote:'"Fit matters more than brand. A tailored $40 shirt beats an untailored $400 one every time."', dm:'"This brand is what everyone will be wearing in 6 months. Send to your stylish friend:"', follow:'"One outfit formula per week that works for normal people with normal budgets. This week: smart casual, solved."', original:'Post the fit natively with the breakdown in text — let \'where\'s the jacket from\' replies do the work.', video:'A 20s "styled 3 ways" video — same piece, three fits.'},
+    killers:[{t:"Borderline content", d:"NSFW image models label at ≥0.95 confidence automatically; 3 flagged posts of your last 5 = whole account limited for 7 days, and a risqué avatar/banner alone does it account-wide.", src:"safety-label-user-agg/postToUserLabelRules.strato#L360"},
+     {t:"Affiliate-link hauls", d:"Low-quality link verdicts + tagging = spam labels, and every 'link in bio to shop' click earns +0.2. Breakdown in text; links in one reply.", src:"botmaker-rules/scarecrow/bot/LQ_Tweets_With_LQ_URL_Verdict_At_Mention_To_NonFollower.bot#L46"}]},
+  sports: {label:"sports", keys:["sports","football","soccer","nba","nfl","basketball","baseball","f1","formula 1","tennis","ufc","mma","cricket","golf","hockey","premier league"],
+    verdict:"Sports is the perfect niche for the 48-hour content window — everything is news-cycle-fresh by definition, and hot takes after games are the purest reply-and-quote engine on the platform (+5 each). Your danger is the same thing that makes it work: rage. A report weighs −234 and rival-fanbase bait generates them; the line between 'take that starts a conversation' and 'take that gets mass-reported' is the line between reach and silent burial. Argue the sport, never the fans.",
+    formats:"Instant post-game takes (the window is hours), stat graphics as native images, 'am I wrong?' framing (reply bait, the good kind).",
+    plan:{save:'"The 5 stats that actually predict who wins this weekend (not the ones TV shows you):"', convo:'"Who\'s the most overrated player in the league right now? Make your case."', quote:'"Availability is a skill. The best ability is durability, and [player]\'s legacy proves it."', dm:'"Nobody\'s talking about this one stat from last night and it changes everything:"', follow:'"One tactical breakdown per week that makes you smarter than the pundits. This week: why the press broke."', original:'Your instant reaction, posted within the hour — sports content ages in hours, not days.', video:'A 30s clip breakdown: "watch what he does OFF the ball here."'},
+    killers:[{t:"Rival-fanbase rage bait", d:"Reports weigh −234 and angry fanbases mass-report. 'Not interested' clicks (−43) from the other half of your audience compound it. Take positions on the game, not the fans.", src:"home-mixer/params/param.rs#L442"},
+     {t:"Posting reheated takes a day late", d:"Sports content competes in a 48h window at most — and in practice hours. The take everyone already saw gets buried by the similarity rerank.", src:"home-mixer/params/config.rs#L36"}]},
+  music: {label:"music & audio", keys:["music","musician","producer","songwriter","dj","rap","hip hop","rock","pop","edm","guitar","piano","singing","band","album"],
+    verdict:"Music's biggest algorithmic mistake is linking out: Spotify/SoundCloud links earn +0.2 per click while a native 30-second clip earns per-second dwell credit and video-view signals. Post the hook natively and let the link live in your bio and replies. Process content — how the beat was made, the voice-memo-to-final journey — is your DM-share engine ('you need to hear this'), and consistent genre focus keeps your early-liker community signal clean so discovery sends you to the right ears.",
+    formats:"Native clips 15–60s (the hook, not the intro), process videos (voice memo → final), hot takes about the industry (quotes).",
+    plan:{save:'"Every free plugin that actually sounds pro, by category (producers, save this):"', convo:'"What\'s a universally hated album you think is a masterpiece?"', quote:'"Nobody streams your song because you asked. They stream it because someone they trust wouldn\'t shut up about it."', dm:'"Made this beat from a voice memo I recorded in a parking garage. The before/after:"', follow:'"One production technique per week, broken down in 60 seconds. This week: why your mix sounds thin."', original:'Post the 30-second hook natively — the Spotify link earns nothing until they already care.', video:'A 30s split-screen: the voice memo vs the final master.'},
+    killers:[{t:"Streaming links as the post", d:"'New single out now [link]' earns +0.2 per click — the weakest signal in the codebase. The native clip earns dwell every second. Clip first; link in reply after it works.", src:"home-mixer/params/param.rs#L310"},
+     {t:"Follow-for-follow musician circles", d:"Follow-churn is one of the 7 modeled bot behaviors, and mutual-boost circles wreck your community signal — you'll be recommended to other unheard musicians instead of listeners.", src:"bdsm/runtime/heads.py#L16"}]},
+  news: {label:"news, politics & commentary", keys:["news","politics","political","commentary","current events","geopolitics","election","policy","journalism","breaking"],
+    verdict:"Commentary is the highest-risk, highest-velocity niche in the codebase. The 48-hour window is irrelevant — your window is minutes, and being early to a story with context is the strongest position on the platform. But every enforcement system watches this niche hardest: reports (−234) flow freely from whoever disagrees, and 'CivicIntegrity' is a named FOSNR label class — posts flagged under it stay visible on your profile but are removed from EVERYONE's timelines, followers included. Add context and analysis, never fabricate, and let the other side's rage-baiters collect the reports.",
+    formats:"Fast context threads ('what we actually know'), primary-source screenshots, analysis that adds what the headline missed.",
+    plan:{save:'"What we actually know about [story] so far, sourced — bookmark this, it updates:"', convo:'"Steelman the other side\'s position on [issue]. Best genuine attempt wins."', quote:'"The headline is technically true and completely misleading. Here\'s the number that matters:"', dm:'"Everyone\'s sharing the clip. Nobody\'s read the full transcript. It changes things:"', follow:'"I read the primary sources so you don\'t have to. One no-spin breakdown per day."', original:'Your fastest good take wins — commentary decays in hours, and the first framing sets the conversation.', video:'A 45s explainer: the story in context, with the source on screen.'},
+    killers:[{t:"Rage bait", d:"This niche generates reports (−234 each in ranking) faster than any other, and mass-reported posts feed the enforcement pipeline. The angrier your framing, the smaller your reach — mathematically.", src:"home-mixer/params/param.rs#L442"},
+     {t:"Civic-integrity labels", d:"FOSNR_CIVIC_INTEGRITY-labeled posts are removed from all timelines — followers included — while staying on your profile ('freedom of speech, not reach'). Misleading election/civic claims are the trigger.", src:"visibility-filtering/rules/tweet_label_drops.rs#L126"},
+     {t:"Sharing flagged links", d:"One UNSAFE URL verdict retroactively de-amplifies every post that shared it. Misinformation-flagged domains are exactly what this system exists for.", src:"botmaker-rules/scarecrow/bot/rtf_tweets_on_unsafe_verdict.bot#L19"}]},
+  science: {label:"science & education", keys:["science","physics","biology","chemistry","space","astronomy","history","education","learning","math","psychology","research","medicine","teaching"],
+    verdict:"Educational content is the quiet winner of the current weights: explainer posts are save-and-send machines (+20 copy-link, +5 DM), 'today I learned' framing generates replies, and diagram-heavy posts earn the screenshot and dwell signals the model tracks. LLM review at traction (128+ likes) grades posts for quality — 'isHighQuality' is a real label — and well-sourced educational content is exactly what it's calibrated to like. Your one structural risk: medical/health claims draw both reports and policy classifiers, so cite sources and skip miracle framings.",
+    formats:"Diagram + explanation posts (screenshots tracked), 'you were taught this wrong' hooks (quotes + replies), thread → single-image summary (saves).",
+    plan:{save:'"The 10 mental models from physics that make everything else make sense (save this):"', convo:'"What\'s a scientific \'fact\' you learned in school that turned out to be wrong?"', quote:'"You don\'t hate math. You hate arithmetic. Nobody ever showed you the difference."', dm:'"This 300-year-old experiment explains the thing you noticed yesterday. Send it to someone curious:"', follow:'"One \'wait, THAT\'s why?\' explainer per week. This week: why glass is technically not a liquid (sorry)."', original:'Turn the question that blew your mind into the post that blows theirs.', video:'A 45s visual explainer — the phenomenon on screen, the why in the caption.'},
+    killers:[{t:"Miracle health claims", d:"Medical misinformation draws reports (−234) and named policy classifiers. 'This herb cures X' is a report magnet; 'here\'s what the study actually found' is a save magnet.", src:"grox/flows/ptos/state.py#L11"},
+     {t:"Paywalled-paper links", d:"A link nobody can open earns +0.2 from the few who try. Summarize the finding in the post; DOI link in the reply.", src:"home-mixer/params/param.rs#L310"}]},
+  general: {label:"your niche", keys:[],
+    verdict:"The core rules are universal: replies and quotes (+5) beat likes (+0.5) 10-to-1, copy-link shares (+20) are the jackpot, reports (−234) are death, and only original posts reach non-followers. What your specific topic changes is the format mix and the failure modes — as your account grows, your early likers' interests decide which of X's 145,000 communities your content travels to, so the tighter and more consistent your topic, the cleaner your discovery signal.",
+    formats:"Lead with your strongest specific insight, natively (no links up front). Ask real questions. Turn your best replies into original posts.",
+    plan:{save:'"The 7 [topic] mistakes I see everyone make (and what to do instead):"', convo:'"Hot take: most [topic] advice is wrong about one thing. What\'s the rule you ignore?"', quote:'"Unpopular opinion about [topic]: [specific, defensible claim]"', dm:'"Nobody talks about this in [topic], but here\'s what\'s actually happening behind the scenes:"', follow:'"I\'ve spent years in [topic]. Here are the 5 things that actually mattered — one deep dive a week."', original:'Turn your best reply of the week into a standalone post.', video:'A 45s "here\'s exactly how I do X" screen recording or demo.'},
+    killers:[]}
+};
+
+function matchNiche(topic){
+  const t = topic.toLowerCase();
+  let best = null, bestLen = 0;
+  for (const [id, n] of Object.entries(NICHES)){
+    for (const k of n.keys){
+      if (t.includes(k) && k.length > bestLen){ best = id; bestLen = k.length; }
+    }
+  }
+  return NICHES[best || "general"];
+}
+
+function planFor(topic, niche){
   const t = topic.trim();
+  const ex = niche.plan;
   return [
     {title:`The save-worthy resource`, why:`Copy-link shares weigh +20 — 40× a like`, src:"home-mixer/params/param.rs#L325",
-     desc:`Post something about ${t} people will want to send to a friend or save: a checklist, a tool list, a mistakes-to-avoid breakdown. Optimize for "I need to send this to someone."`,
-     ex:`"The 7 ${t} mistakes I see everyone make (and what to do instead):"`},
+     desc:`Post the thing people in ${t} will want to send to a friend or come back to later. Optimize for "I need to save this."`,
+     ex:ex.save},
     {title:`The conversation starter`, why:`Replies weigh +5 — 10× a like`, src:"home-mixer/params/param.rs#L283",
-     desc:`Ask a genuinely divisive-but-friendly question about ${t}. The goal is replies, not likes — and reply to every reply, since conversations from mutuals get a further 4× boost.`,
-     ex:`"Hot take: most ${t} advice is wrong about one thing. What's the one rule you ignore?"`},
+     desc:`Ask the question your corner of ${t} genuinely disagrees about. The goal is replies, not likes — and reply to every reply, since conversations with mutuals get a further 4× boost.`,
+     ex:ex.convo},
     {title:`The quotable claim`, why:`Quotes weigh +5`, src:"home-mixer/params/param.rs#L332",
-     desc:`Make a strong, specific claim about ${t} that people will quote to agree or push back. Vague takes get likes; sharp takes get quoted.`,
-     ex:`"Unpopular opinion about ${t}: [specific, defensible claim]"`},
+     desc:`Make a strong, specific claim people will quote to agree or push back. Vague takes get likes; sharp takes get quoted.`,
+     ex:ex.quote},
     {title:`The DM-worthy insider note`, why:`DM shares weigh +5`, src:"home-mixer/params/param.rs#L319",
-     desc:`Share something about ${t} that feels like insider knowledge — the kind of post someone DMs to their group chat with "have you seen this?"`,
-     ex:`"Nobody talks about this in ${t}, but here's what's actually happening behind the scenes…"`},
+     desc:`The post someone sends to their group chat with "have you seen this?" — insider knowledge, surprising data, the thing everyone senses but nobody has said.`,
+     ex:ex.dm},
     {title:`The follow trigger`, why:`Follows from a post weigh +4 — 8× a like`, src:"home-mixer/params/param.rs#L346",
-     desc:`Periodically post the "why you should follow me" piece: your best ${t} insight plus a hint there's more coming. This converts viewers into followers, which the ranker rewards directly.`,
-     ex:`"I've spent [X years] doing ${t}. Here are the 5 things that actually mattered — I post one deep dive a week."`},
-    {title:`The original thread (not a reply)`, why:`Replies/retweets take a 0.75× haircut; only original posts reach non-followers`, src:"home-mixer/filters/oon_retweet_reply_filter.rs#L13",
-     desc:`Package your best ${t} thinking as original posts. Your replies and retweets literally cannot appear in non-followers' For You feeds — original posts are the only vehicle for discovery.`,
-     ex:`Turn your best reply of the week into a standalone post.`},
+     desc:`Periodically post the "why you should follow me" piece: your best insight plus a clear promise of what's coming. This converts viewers into followers, which the ranker rewards directly.`,
+     ex:ex.follow},
+    {title:`The original post (not a reply)`, why:`Replies/retweets take a 0.75× haircut; only original posts reach non-followers`, src:"home-mixer/filters/oon_retweet_reply_filter.rs#L13",
+     desc:`Your replies and retweets literally cannot appear in non-followers' For You feeds — original posts are the only vehicle for discovery.`,
+     ex:ex.original},
     {title:`The 10-second-plus video`, why:`Video credit only counts past 10s; dwell time accrues +0.004/sec`, src:"home-mixer/params/param.rs#L677",
-     desc:`If you use video for ${t}, make it longer than 10 seconds (shorter earns zero video credit) and front-load a hook — held attention accumulates score every second.`,
-     ex:`A 45-second "here's exactly how I do X" screen recording beats an 8-second clip.`},
+     desc:`Under 10 seconds earns zero video credit. Front-load the hook — held attention accumulates score every second.`,
+     ex:ex.video},
   ];
 }
 
@@ -272,6 +391,13 @@ function esc(s){ const d=document.createElement('div'); d.textContent=s; return 
 function analyze(){
   const topic = document.getElementById('topic').value.trim() || "your topic";
   const size = document.getElementById('followers').value;
+  const niche = matchNiche(topic);
+
+  document.getElementById('verdictTitle').textContent = `The algorithm × ${niche.label}`;
+  document.getElementById('verdictCard').innerHTML =
+    `<p style="color:var(--ink);font-size:15px;line-height:1.6">${esc(niche.verdict)}</p>
+     <h3 style="margin-top:14px">Formats that win in ${esc(niche.label)}</h3>
+     <p>${esc(niche.formats)}</p>`;
 
   const maxAbs = 234;
   document.getElementById('weightsCard').innerHTML = WEIGHTS.map(w=>{
@@ -284,7 +410,7 @@ function analyze(){
   }).join('') + `<a class="src" href="${GH}home-mixer/params/param.rs" target="_blank" rel="noopener">home-mixer/params/param.rs ↗</a>`;
 
   document.getElementById('planTitle').textContent = `Your content plan: ${topic}`;
-  document.getElementById('planCard').innerHTML = planFor(topic).map((p,i)=>`
+  document.getElementById('planCard').innerHTML = planFor(topic, niche).map((p,i)=>`
     <div class="day">
       <div class="num">${i+1}</div>
       <div>
@@ -312,9 +438,10 @@ function analyze(){
       <a class="src" href="${GH}${k.src}" target="_blank" rel="noopener">${k.src.split('#')[0]} ↗</a>
     </div>`).join('');
 
-  document.getElementById('killerCards').innerHTML = KILLERS.map(k=>`
+  const nicheKillers = (niche.killers||[]).map(k=>({...k, niche:true}));
+  document.getElementById('killerCards').innerHTML = nicheKillers.concat(KILLERS).map(k=>`
     <div class="card">
-      <span class="badge bad">AVOID</span>
+      <span class="badge bad">${k.niche?'AVOID · '+esc(niche.label).toUpperCase():'AVOID'}</span>
       <h3>${esc(k.t)}</h3><p>${esc(k.d)}</p>
       <a class="src" href="${GH}${k.src}" target="_blank" rel="noopener">${k.src.split('#')[0]} ↗</a>
     </div>`).join('');
