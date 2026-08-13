@@ -137,18 +137,22 @@ Example posts must contain no URLs and no invented statistics.
 ALLOWED_SOURCES: ${ALLOWED_SOURCES.join(', ')}`;
 
   try {
-    const result = await generateText({
-      model: 'openai/gpt-oss-120b',
-      system,
-      prompt: `Handle: ${handle || 'not given'}. Bio: ${bio || 'not given'}. Account size: ${sizeDesc}.\nTheir recent posts (one per line or separated by blank lines):\n"""\n${posts}\n"""\nProduce the JSON audit.`,
-      providerOptions: {
-        gateway: { user: ip, tags: ['feature:profile'] }
-      }
-    });
-    let text = result.text.trim().replace(/^```json?\s*/i, '').replace(/```\s*$/, '');
-    const start = text.indexOf('{'), end = text.lastIndexOf('}');
-    if (start >= 0 && end > start) text = text.slice(start, end + 1);
-    const data = JSON.parse(text);
+    let data;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = await generateText({
+        model: 'openai/gpt-oss-120b',
+        system,
+        prompt: `Handle: ${handle || 'not given'}. Bio: ${bio || 'not given'}. Account size: ${sizeDesc}.\nTheir recent posts (one per line or separated by blank lines):\n"""\n${posts}\n"""\nProduce the JSON audit.`,
+        providerOptions: {
+          gateway: { user: ip, tags: ['feature:profile'] }
+        }
+      });
+      let text = result.text.trim().replace(/^```json?\s*/i, '').replace(/```\s*$/, '');
+      const start = text.indexOf('{'), end = text.lastIndexOf('}');
+      if (start >= 0 && end > start) text = text.slice(start, end + 1);
+      try { data = JSON.parse(text); break; }
+      catch (e) { if (attempt === 1) throw e; }
+    }
     if (data.error) return res.status(422).json(data);
     for (const item of [...(data.postAudits || []), ...(data.plan || []), ...(data.killers || [])]) {
       if (item.src && !ALLOWED_SOURCES.includes(item.src)) delete item.src;

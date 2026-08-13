@@ -89,23 +89,27 @@ ALLOWED_SOURCES (cite ONLY these, choose the most relevant): ${ALLOWED_SOURCES.j
 
   try {
     const ip = (req.headers['x-forwarded-for'] || 'anon').split(',')[0].trim();
-    const result = await generateText({
-      model: 'openai/gpt-oss-120b',
-      system,
-      prompt: `Topic: "${topic}". Account size: ${sizeDesc}. Produce the JSON.`,
-      providerOptions: {
-        gateway: {
-          models: [],
-          user: ip,
-          tags: ['feature:analyze'],
-          cacheControl: 'max-age=86400'
+    let data;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = await generateText({
+        model: 'openai/gpt-oss-120b',
+        system,
+        prompt: `Topic: "${topic}". Account size: ${sizeDesc}. Produce the JSON.`,
+        providerOptions: {
+          gateway: {
+            models: [],
+            user: ip,
+            tags: ['feature:analyze'],
+            cacheControl: 'max-age=86400'
+          }
         }
-      }
-    });
-    let text = result.text.trim().replace(/^```json?\s*/i, '').replace(/```\s*$/, '');
-    const start = text.indexOf('{'), end = text.lastIndexOf('}');
-    if (start >= 0 && end > start) text = text.slice(start, end + 1);
-    const data = JSON.parse(text);
+      });
+      let text = result.text.trim().replace(/^```json?\s*/i, '').replace(/```\s*$/, '');
+      const start = text.indexOf('{'), end = text.lastIndexOf('}');
+      if (start >= 0 && end > start) text = text.slice(start, end + 1);
+      try { data = JSON.parse(text); break; }
+      catch (e) { if (attempt === 1) throw e; }
+    }
     if (data.error) return res.status(422).json(data);
     for (const item of [...(data.plan || []), ...(data.killers || [])]) {
       if (item.src && !ALLOWED_SOURCES.includes(item.src)) delete item.src;
