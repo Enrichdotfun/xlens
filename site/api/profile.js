@@ -39,7 +39,7 @@ const CORS = {
 
 // Best-effort per-IP daily cap (persists across warm invocations on Fluid Compute).
 // The client also enforces a localStorage cap; AI Gateway per-user limits are the backstop.
-const DAILY_CAP = 5;
+const DAILY_CAP = 15;
 const usage = globalThis.__xlensUsage || (globalThis.__xlensUsage = new Map());
 
 // Fetch real posts + profile via twitterapi.io (pay-per-use X data provider).

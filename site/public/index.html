@@ -562,6 +562,13 @@ function setMode(m){
   if(!topic) updateCapNote();
 }
 
+function showFormError(msg){
+  const el = document.getElementById('capNote');
+  el.textContent = msg;
+  el.style.cssText = 'color:var(--neg);font-weight:700;font-size:14px;text-align:center';
+  setTimeout(()=>{ el.style.cssText=''; updateCapNote(); }, 8000);
+}
+
 const CLIENT_CAP = 3;
 function capState(){
   const day = new Date().toISOString().slice(0,10);
@@ -582,7 +589,7 @@ async function profileAnalyze(){
   if (s.used >= CLIENT_CAP){ updateCapNote(); return; }
   const handle = document.getElementById('pHandle').value.trim();
   const posts = document.getElementById('pPosts').value.trim();
-  if (!handle && posts.length < 40){ document.getElementById('capNote').textContent = 'Enter your @handle, or paste a few real posts.'; return; }
+  if (!handle && posts.length < 40){ showFormError('Enter your @handle, or paste a few real posts.'); return; }
 
   const btn = document.querySelector('#profileForm button.go');
   btn.disabled = true; btn.textContent = handle && posts.length < 40 ? `Fetching ${handle}'s real posts…` : 'Auditing your posts against the algorithm…';
@@ -598,16 +605,16 @@ async function profileAnalyze(){
     });
     const data = await r.json();
     if (!r.ok || !data.plan) {
-      document.getElementById('capNote').textContent =
-        r.status===429 ? 'Daily limit reached — come back tomorrow.' :
+      showFormError(
+        r.status===429 ? 'Daily audit limit reached for your connection — come back tomorrow.' :
         (data && data.error) ? data.error :
-        'The analyzer is busy — try again in a minute.';
+        'The analyzer hiccuped — try once more.');
       return;
     }
     s.used++; localStorage.setItem('xlens_cap', JSON.stringify(s));
     renderProfile(data);
   } catch(e) {
-    document.getElementById('capNote').textContent = 'Network error — try again.';
+    showFormError('Network error — try again.');
   } finally {
     btn.disabled = false; btn.textContent = 'Audit my posts against the algorithm →';
     updateCapNote();
