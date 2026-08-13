@@ -1,80 +1,93 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>X Lens — content plans from X's real algorithm</title>
-<meta name="description" content="Enter your topic. X Lens reads X's open-source algorithm and gives you a content plan built on the actual ranking weights — every recommendation cited to source code.">
+<title>XLens - Enrich</title>
+<meta name="description" content="XLens reads X's open-source algorithm and gives you a content plan built on the actual ranking weights — every recommendation cited to source code.">
+<link rel="icon" type="image/png" href="/favicon.png?v=2">
+<link rel="stylesheet" href="/styles.css">
 <style>
   :root{
-    --bg:#000000; --panel:#0a0a0a; --panel2:#111214; --border:#1f2225;
-    --text:#e7e9ea; --muted:#71767b; --accent:#1d9bf0; --good:#00ba7c;
-    --bad:#f4212e; --warn:#ffd400; --radius:16px;
+    --ink:#121212; --muted:#5f6368; --paper:#ffffff;
+    --line:rgba(18,18,18,.08); --line2:rgba(18,18,18,.16);
+    --neg:#b3261e; --accent:#121212;
   }
-  *{box-sizing:border-box;margin:0;padding:0}
-  html{scroll-behavior:smooth}
-  body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:680px;margin:0 auto;padding:0 20px}
-  header{padding:64px 0 40px;text-align:center}
-  .logo{font-size:44px;font-weight:800;letter-spacing:-1.5px}
-  .logo .x{color:var(--accent)}
-  .tagline{color:var(--muted);margin-top:10px;font-size:17px}
-  .tagline a{color:var(--accent);text-decoration:none}
-  .search{margin:36px 0 12px;display:flex;flex-direction:column;gap:12px}
-  .search input,.search select{background:var(--panel2);border:1px solid var(--border);border-radius:999px;color:var(--text);font-size:17px;padding:16px 24px;outline:none;width:100%;appearance:none}
-  .search input:focus{border-color:var(--accent)}
-  .row{display:flex;gap:12px}
-  .row select{flex:1}
-  button.go{background:var(--accent);border:none;border-radius:999px;color:#fff;font-size:17px;font-weight:700;padding:16px;cursor:pointer;width:100%;transition:filter .15s}
-  button.go:hover{filter:brightness(1.1)}
-  .hint{color:var(--muted);font-size:13px;text-align:center;margin-bottom:8px}
-  .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:14px}
-  .chip{background:var(--panel2);border:1px solid var(--border);border-radius:999px;color:var(--muted);font-size:13px;padding:6px 14px;cursor:pointer}
-  .chip:hover{color:var(--text);border-color:var(--accent)}
-  #results{display:none;padding-bottom:80px}
-  section{margin-top:40px}
-  h2{font-size:22px;font-weight:800;margin-bottom:4px}
-  .sub{color:var(--muted);font-size:14px;margin-bottom:16px}
-  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:12px}
-  .card h3{font-size:16px;font-weight:700;margin-bottom:4px}
-  .card p{color:var(--muted);font-size:14px}
-  .card .example{color:var(--text);font-size:14px;background:var(--panel2);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:10px 14px;margin-top:10px;font-style:italic}
-  .src{display:inline-block;margin-top:10px;font-size:12px;color:var(--muted);text-decoration:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-  .src:hover{color:var(--accent)}
-  .badge{display:inline-block;font-size:12px;font-weight:700;border-radius:6px;padding:2px 8px;margin-bottom:8px}
-  .badge.good{background:rgba(0,186,124,.12);color:var(--good)}
-  .badge.bad{background:rgba(244,33,46,.12);color:var(--bad)}
-  .badge.warn{background:rgba(255,212,0,.1);color:var(--warn)}
+  body{background:var(--paper);color:var(--ink);font-family:"Outfit",ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;line-height:1.55}
+  .xl-wrap{max-width:680px;margin:0 auto;padding:0 24px}
+  .xl-nav{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:22px 28px;font-size:13px;font-weight:800;border-bottom:1px solid var(--line)}
+  .xl-nav .logo{grid-column:1;justify-self:start;width:42px;height:42px;border:1px solid var(--line);border-radius:50%;overflow:hidden;display:grid;place-items:center;background:#fff}
+  .xl-nav .logo img{width:100%;height:100%;object-fit:cover}
+  .xl-nav .title{grid-column:2;justify-self:center;text-decoration:none;color:inherit}
+  .xl-nav nav{grid-column:3;justify-self:end;display:flex;gap:22px}
+  .xl-nav nav a{color:inherit}
+  header.xl-hero{padding:72px 0 40px;text-align:center}
+  .xl-kicker{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
+  .xl-hero h1{margin:0;font-size:clamp(34px,5vw,48px);font-weight:800;letter-spacing:-1px}
+  .tagline{color:var(--muted);margin:14px auto 0;font-size:16px;max-width:560px}
+  .tagline b{color:var(--ink)}
+  .stats{display:flex;gap:10px;justify-content:center;margin-top:26px;flex-wrap:wrap}
+  .stat{border:1px solid var(--line);border-radius:12px;padding:10px 18px;text-align:center;background:#fff}
+  .stat b{display:block;font-size:20px}
+  .stat span{font-size:12px;color:var(--muted)}
+  .search{margin:34px 0 10px;display:flex;flex-direction:column;gap:10px}
+  .search input,.search select{background:#fff;border:1px solid var(--line2);border-radius:999px;color:var(--ink);font-size:16px;padding:15px 24px;outline:none;width:100%;appearance:none;font-family:inherit}
+  .search input:focus,.search select:focus{border-color:var(--ink)}
+  button.go{background:var(--ink);border:none;border-radius:999px;color:#fff;font-size:16px;font-weight:700;padding:15px;cursor:pointer;width:100%;font-family:inherit}
+  button.go:hover{opacity:.85}
+  .hint{color:var(--muted);font-size:13px;text-align:center;margin:10px 0 8px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:12px}
+  .chip{border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:13px;padding:6px 14px;cursor:pointer;background:#fff}
+  .chip:hover{color:var(--ink);border-color:var(--ink)}
+  #results{display:none;padding-bottom:60px}
+  section{margin-top:44px}
+  h2{font-size:22px;font-weight:800;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 16px}
+  .card{border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-bottom:12px;background:#fff}
+  .card h3{font-size:16px;font-weight:700;margin:0 0 4px}
+  .card p{color:var(--muted);font-size:14px;margin:0}
+  .card .example{color:var(--ink);font-size:14px;border-left:3px solid var(--ink);padding:10px 14px;margin-top:10px;font-style:italic;background:rgba(18,18,18,.03);border-radius:0 8px 8px 0}
+  .src{display:inline-block;margin-top:10px;font-size:12px;color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .src:hover{color:var(--ink)}
+  .badge{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.06em;border-radius:6px;padding:2px 8px;margin-bottom:8px;border:1px solid var(--line2)}
+  .badge.good{color:var(--ink)}
+  .badge.bad{color:var(--neg);border-color:rgba(179,38,30,.3)}
+  .badge.warn{color:var(--muted)}
   .weightbar{display:flex;align-items:center;gap:10px;margin:6px 0}
   .weightbar .label{width:150px;font-size:13px;color:var(--muted);flex-shrink:0;text-align:right}
-  .weightbar .bar{height:10px;border-radius:5px;background:var(--accent);min-width:2px}
-  .weightbar .bar.neg{background:var(--bad)}
+  .weightbar .bar{height:10px;border-radius:5px;background:var(--ink);min-width:2px}
+  .weightbar .bar.neg{background:var(--neg)}
   .weightbar .val{font-size:12px;color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-  .day{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--border)}
+  .day{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
   .day:last-child{border-bottom:none}
-  .day .num{width:44px;height:44px;border-radius:50%;background:var(--panel2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--accent);flex-shrink:0;font-size:13px}
-  .day h4{font-size:15px;font-weight:700}
-  .day p{color:var(--muted);font-size:14px}
-  .day .why{font-size:12px;color:var(--accent);margin-top:2px}
-  footer{border-top:1px solid var(--border);color:var(--muted);font-size:13px;padding:28px 0 48px;text-align:center}
-  footer a{color:var(--accent);text-decoration:none}
-  .disclaimer{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;font-size:13px;color:var(--muted);margin-top:36px}
-  .stats{display:flex;gap:12px;justify-content:center;margin-top:24px}
-  .stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 18px;text-align:center}
-  .stat b{display:block;font-size:20px;color:var(--accent)}
-  .stat span{font-size:12px;color:var(--muted)}
+  .day .num{width:44px;height:44px;border-radius:50%;border:1px solid var(--line2);display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0;font-size:13px;background:#fff}
+  .day h4{font-size:15px;font-weight:700;margin:0}
+  .day p{color:var(--muted);font-size:14px;margin:0}
+  .day .why{font-size:12px;font-weight:700;margin-top:2px}
   .cheat{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .cheat .ci{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
-  .cheat .ci b{font-size:20px;color:var(--accent);display:block}
+  .cheat .ci{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:#fff}
+  .cheat .ci b{font-size:20px;display:block}
   .cheat .ci span{font-size:13px;color:var(--muted)}
-  @media (max-width:520px){ .weightbar .label{width:110px} header{padding:40px 0 24px} .logo{font-size:34px} .cheat{grid-template-columns:1fr} }
+  .disclaimer{border:1px solid var(--line);border-radius:16px;padding:14px 18px;font-size:13px;color:var(--muted);margin-top:36px}
+  footer.xl-footer{border-top:1px solid var(--line);color:var(--muted);font-size:13px;padding:28px 0 48px;text-align:center;margin-top:48px}
+  @media (max-width:560px){ .weightbar .label{width:110px} .cheat{grid-template-columns:1fr} .xl-nav{padding:16px} header.xl-hero{padding:48px 0 28px} }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div class="logo"><span class="x">X</span> Lens</div>
-    <p class="tagline">X open-sourced <a href="https://github.com/xai-org/x-algorithm" target="_blank" rel="noopener">its algorithm</a> — half a million lines of Rust, Scala, and JAX across 26 production services. Almost nobody will ever read it.<br><strong style="color:var(--text)">We did.</strong> Enter your topic — get a content plan built on the real ranking weights.</p>
+  <div class="xl-nav">
+    <a class="logo" href="/" aria-label="Enrich home"><img src="/assets/enrich-logo-nav.png" alt="Enrich logo" onerror="this.parentElement.style.display='none'"></a>
+    <a class="title" href="/">Enrich The trenches.</a>
+    <nav aria-label="Primary navigation">
+      <a href="https://x.com/EnrichFun" target="_blank" rel="noreferrer">X</a>
+      <a href="https://github.com/enrichthetrenches/xlens" target="_blank" rel="noreferrer">Github</a>
+    </nav>
+  </div>
+
+<div class="xl-wrap">
+  <header class="xl-hero">
+    <p class="xl-kicker">Enrich tools</p>
+    <h1>XLens</h1>
+    <p class="tagline">X open-sourced <a href="https://github.com/xai-org/x-algorithm" target="_blank" rel="noopener">its algorithm</a> — half a million lines of Rust, Scala, and JAX across 26 production services. Almost nobody will ever read it. <b>We did.</b> Enter your topic — get a content plan built on the real ranking weights.</p>
     <div class="stats">
       <div class="stat"><b>26</b><span>modules read</span></div>
       <div class="stat"><b>150+</b><span>rules extracted</span></div>
@@ -84,13 +97,11 @@
 
   <div class="search">
     <input id="topic" type="text" placeholder="What is your X profile about? (e.g. AI startups, fitness, indie hacking)" autofocus>
-    <div class="row">
-      <select id="followers">
-        <option value="small">Under 1,000 followers</option>
-        <option value="mid">1,000 – 25,000 followers</option>
-        <option value="large">Over 25,000 followers</option>
-      </select>
-    </div>
+    <select id="followers">
+      <option value="small">Under 1,000 followers</option>
+      <option value="mid">1,000 – 25,000 followers</option>
+      <option value="large">Over 25,000 followers</option>
+    </select>
     <button class="go" onclick="analyze()">Read the algorithm →</button>
   </div>
   <p class="hint">Doing this yourself means wading through 26 services of production Rust, Scala, and JAX.<br>We hand-verified every number at its exact line — and every claim below links to the source so you can check us.</p>
@@ -151,12 +162,12 @@
     </section>
 
     <div class="disclaimer">
-      <strong>Honest fine print:</strong> weights shown are X's open-sourced defaults (synced Aug 2026). They're live-tunable server-side and the final score also depends on the model's per-user predictions. X Lens tells you what the system rewards — it can't guarantee outcomes. Source: <a href="https://github.com/xai-org/x-algorithm" target="_blank" rel="noopener" style="color:var(--accent)">xai-org/x-algorithm</a>.
+      <strong>Honest fine print:</strong> weights shown are X's open-sourced defaults (synced Aug 2026). They're live-tunable server-side and the final score also depends on the model's per-user predictions. XLens tells you what the system rewards — it can't guarantee outcomes. Source: <a href="https://github.com/xai-org/x-algorithm" target="_blank" rel="noopener">xai-org/x-algorithm</a>.
     </div>
   </div>
 
-  <footer>
-    Built from <a href="https://github.com/xai-org/x-algorithm" target="_blank" rel="noopener">xai-org/x-algorithm</a> · not affiliated with X Corp · <a href="https://enrich.fun" >enrich.fun</a>
+  <footer class="xl-footer">
+    Built from <a href="https://github.com/xai-org/x-algorithm" target="_blank" rel="noopener">xai-org/x-algorithm</a> · not affiliated with X Corp · <a href="/">Enrich The trenches.</a>
   </footer>
 </div>
 
@@ -202,7 +213,7 @@ function planFor(topic){
      ex:`Turn your best reply of the week into a standalone post.`},
     {title:`The 10-second-plus video`, why:`Video credit only counts past 10s; dwell time accrues +0.004/sec`, src:"home-mixer/params/param.rs#L677",
      desc:`If you use video for ${t}, make it longer than 10 seconds (shorter earns zero video credit) and front-load a hook — held attention accumulates score every second.`,
-     ex:`A 45-second "here's exactly how I do X" screen recording beats a 8-second clip.`},
+     ex:`A 45-second "here's exactly how I do X" screen recording beats an 8-second clip.`},
   ];
 }
 
@@ -262,7 +273,6 @@ function analyze(){
   const topic = document.getElementById('topic').value.trim() || "your topic";
   const size = document.getElementById('followers').value;
 
-  // weights chart
   const maxAbs = 234;
   document.getElementById('weightsCard').innerHTML = WEIGHTS.map(w=>{
     const pct = Math.max(1.2, Math.sqrt(Math.abs(w.v)/maxAbs)*100);
@@ -273,7 +283,6 @@ function analyze(){
     </div>`;
   }).join('') + `<a class="src" href="${GH}home-mixer/params/param.rs" target="_blank" rel="noopener">home-mixer/params/param.rs ↗</a>`;
 
-  // plan
   document.getElementById('planTitle').textContent = `Your content plan: ${topic}`;
   document.getElementById('planCard').innerHTML = planFor(topic).map((p,i)=>`
     <div class="day">
@@ -287,7 +296,6 @@ function analyze(){
       </div>
     </div>`).join('');
 
-  // boosts
   const subs = {small:"Based on your size: under 1,000 followers.", mid:"Based on your size: 1,000–25,000 followers.", large:"Based on your size: over 25,000 followers."};
   document.getElementById('boostSub').textContent = subs[size];
   document.getElementById('boostCards').innerHTML = BOOSTS[size].map(b=>`
@@ -297,7 +305,6 @@ function analyze(){
       <a class="src" href="${GH}${b.src}" target="_blank" rel="noopener">${b.src.split('#')[0]} ↗</a>
     </div>`).join('');
 
-  // discovery
   document.getElementById('discoveryCards').innerHTML = DISCOVERY.map(k=>`
     <div class="card">
       <span class="badge good">MECHANIC</span>
@@ -305,7 +312,6 @@ function analyze(){
       <a class="src" href="${GH}${k.src}" target="_blank" rel="noopener">${k.src.split('#')[0]} ↗</a>
     </div>`).join('');
 
-  // killers
   document.getElementById('killerCards').innerHTML = KILLERS.map(k=>`
     <div class="card">
       <span class="badge bad">AVOID</span>
