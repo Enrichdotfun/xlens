@@ -126,15 +126,21 @@
   </div>
 
   <div class="search" id="profileForm" style="display:none">
-    <input id="pHandle" type="text" placeholder="@yourhandle (optional)">
-    <input id="pBio" type="text" placeholder="Your bio (optional — paste it)">
-    <textarea id="pPosts" rows="7" placeholder="Paste 5–15 of your recent posts here, one per line or separated by blank lines. X doesn't allow free automated fetching of profiles, so this 30-second copy-paste IS the data — the analysis reads your actual words."></textarea>
+    <input id="pHandle" type="text" placeholder="@yourhandle — we fetch your real recent posts and audit them">
+    <details style="width:100%">
+      <summary style="font-size:13px;color:var(--muted);cursor:pointer;padding:4px 12px">No handle / private account? Paste posts manually instead</summary>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+        <input id="pBio" type="text" placeholder="Your bio (optional)">
+        <textarea id="pPosts" rows="6" placeholder="Paste 5–15 of your recent posts, one per line or separated by blank lines."></textarea>
+      </div>
+    </details>
     <select id="pFollowers">
+      <option value="">Followers: auto-detect from profile</option>
       <option value="small">Under 1,000 followers</option>
       <option value="mid">1,000 – 25,000 followers</option>
       <option value="large">Over 25,000 followers</option>
     </select>
-    <button class="go" onclick="profileAnalyze()">Audit my posts against the algorithm →</button>
+    <button class="go" onclick="profileAnalyze()">Fetch my posts &amp; audit them →</button>
     <p class="hint" id="capNote"></p>
   </div>
   <p class="hint">Doing this yourself means wading through 26 services of production Rust, Scala, and JAX.<br>We hand-verified every number at its exact line — and every claim below links to the source so you can check us.</p>
@@ -574,16 +580,17 @@ function updateCapNote(){
 async function profileAnalyze(){
   const s = capState();
   if (s.used >= CLIENT_CAP){ updateCapNote(); return; }
+  const handle = document.getElementById('pHandle').value.trim();
   const posts = document.getElementById('pPosts').value.trim();
-  if (posts.length < 40){ document.getElementById('capNote').textContent = 'Paste at least a few real posts first.'; return; }
+  if (!handle && posts.length < 40){ document.getElementById('capNote').textContent = 'Enter your @handle, or paste a few real posts.'; return; }
 
   const btn = document.querySelector('#profileForm button.go');
-  btn.disabled = true; btn.textContent = 'Auditing your posts against the algorithm…';
+  btn.disabled = true; btn.textContent = handle && posts.length < 40 ? `Fetching ${handle}'s real posts…` : 'Auditing your posts against the algorithm…';
   try {
     const r = await fetch(API_BASE + '/api/profile', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
-        handle: document.getElementById('pHandle').value.trim(),
+        handle,
         bio: document.getElementById('pBio').value.trim(),
         posts,
         size: document.getElementById('pFollowers').value
@@ -592,7 +599,9 @@ async function profileAnalyze(){
     const data = await r.json();
     if (!r.ok || !data.plan) {
       document.getElementById('capNote').textContent =
-        r.status===429 ? 'Daily limit reached — come back tomorrow.' : 'The analyzer is busy — try again in a minute.';
+        r.status===429 ? 'Daily limit reached — come back tomorrow.' :
+        (data && data.error) ? data.error :
+        'The analyzer is busy — try again in a minute.';
       return;
     }
     s.used++; localStorage.setItem('xlens_cap', JSON.stringify(s));
@@ -609,7 +618,8 @@ function renderProfile(d){
   const score = Math.max(0, Math.min(100, parseInt(d.score)||0));
   document.getElementById('pScore').textContent = score;
   document.getElementById('pScoreBar').style.width = score + '%';
-  document.getElementById('pScoreReason').textContent = d.scoreReason || '';
+  const who = d.profile ? `@${d.profile.handle}${d.profile.followers!=null?` · ${Number(d.profile.followers).toLocaleString()} followers`:''} · audited from their real recent posts — ` : '';
+  document.getElementById('pScoreReason').textContent = who + (d.scoreReason || '');
   document.getElementById('pVerdict').textContent = d.verdict || '';
 
   document.getElementById('pAudits').innerHTML = (d.postAudits||[]).map(a=>`

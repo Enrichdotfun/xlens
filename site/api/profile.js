@@ -42,17 +42,68 @@ const CORS = {
 const DAILY_CAP = 5;
 const usage = globalThis.__xlensUsage || (globalThis.__xlensUsage = new Map());
 
+// Fetch real posts + profile via twitterapi.io (pay-per-use X data provider).
+// Requires X_DATA_API_KEY in env. Returns { postsText, bio, followers } or null.
+async function fetchRealPosts(handle) {
+  const key = process.env.X_DATA_API_KEY;
+  if (!key) return null;
+  const userName = handle.replace(/^@/, '').replace(/[^A-Za-z0-9_]/g, '');
+  if (!userName) return null;
+  const headers = { 'X-API-Key': key };
+
+  const tw = await fetch(
+    `https://api.twitterapi.io/twitter/user/last_tweets?userName=${userName}&includeReplies=false`,
+    { headers }
+  );
+  if (!tw.ok) throw new Error(`fetch tweets ${tw.status}`);
+  const data = await tw.json();
+  const tweets = (data.tweets || []).filter(t => t.type === 'tweet').slice(0, 18);
+  if (!tweets.length) throw new Error('no tweets found');
+
+  const author = tweets[0].author || {};
+  const postsText = tweets.map(t =>
+    `[${(t.createdAt || '').slice(0, 16)} | ${t.likeCount ?? 0} likes, ${t.replyCount ?? 0} replies, ${t.retweetCount ?? 0} RTs, ${t.viewCount ?? 0} views]\n${t.text}`
+  ).join('\n\n');
+
+  let bio = '';
+  try {
+    const ui = await fetch(`https://api.twitterapi.io/twitter/user/info?userName=${userName}`, { headers });
+    if (ui.ok) { const u = await ui.json(); bio = u?.data?.description || u?.description || ''; }
+  } catch (e) { /* bio is optional */ }
+
+  return { postsText, bio, followers: author.followers ?? null, name: author.name || userName, userName };
+}
+
 export default async function handler(req, res) {
   Object.entries(CORS).forEach(([k, v]) => res.setHeader(k, v));
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
-  const { handle, bio, posts, size } = req.body || {};
-  if (!posts || typeof posts !== 'string' || posts.trim().length < 40) {
-    return res.status(400).json({ error: 'paste at least a few recent posts' });
-  }
-  if (posts.length > 8000 || (bio || '').length > 500 || (handle || '').length > 30) {
+  let { handle, bio, posts, size } = req.body || {};
+  if ((posts || '').length > 8000 || (bio || '').length > 500 || (handle || '').length > 30) {
     return res.status(400).json({ error: 'input too long' });
+  }
+
+  // Auto-fetch real posts when a handle is given and nothing was pasted.
+  let fetched = null;
+  if (handle && (!posts || posts.trim().length < 40)) {
+    if (!process.env.X_DATA_API_KEY) {
+      return res.status(503).json({ error: 'live fetch not configured — paste your posts instead' });
+    }
+    try {
+      fetched = await fetchRealPosts(handle);
+      posts = fetched.postsText;
+      bio = bio || fetched.bio;
+      if (!size && fetched.followers != null) {
+        size = fetched.followers < 1000 ? 'small' : fetched.followers <= 25000 ? 'mid' : 'large';
+      }
+    } catch (err) {
+      console.error('fetch posts failed:', err?.message);
+      return res.status(502).json({ error: 'could not fetch that profile — check the handle, or paste posts manually' });
+    }
+  }
+  if (!posts || typeof posts !== 'string' || posts.trim().length < 40) {
+    return res.status(400).json({ error: 'enter a handle or paste at least a few recent posts' });
   }
 
   const ip = (req.headers['x-forwarded-for'] || 'anon').split(',')[0].trim();
@@ -67,7 +118,7 @@ export default async function handler(req, res) {
 
   const sizeDesc = { small: 'under 1,000 followers', mid: '1,000-25,000 followers', large: 'over 25,000 followers' }[size] || 'unknown size';
 
-  const system = `You are XLens, an expert analyst of X's open-sourced recommendation algorithm (github.com/xai-org/x-algorithm). You are auditing a real creator's actual posts against the verified algorithm facts below. Be specific to THEIR content — quote their own words back at them, name their strengths honestly, and diagnose their weaknesses concretely. Never invent posts they didn't write. If the pasted content is adult, illegal, or hateful, respond only with JSON {"error":"unsupported content"}.
+  const system = `You are XLens, an expert analyst of X's open-sourced recommendation algorithm (github.com/xai-org/x-algorithm). You are auditing a real creator's actual posts against the verified algorithm facts below. Be specific to THEIR content — quote their own words back at them, name their strengths honestly, and diagnose their weaknesses concretely. Never invent posts they didn't write. Posts may include real engagement metrics in [brackets] — use them: identify which of their posts actually performed and why the weights explain it, and where high effort earned low reward. If the pasted content is adult, illegal, or hateful, respond only with JSON {"error":"unsupported content"}.
 
 VERIFIED FACTS:
 ${RULES}
@@ -94,13 +145,16 @@ ALLOWED_SOURCES: ${ALLOWED_SOURCES.join(', ')}`;
         gateway: { user: ip, tags: ['feature:profile'] }
       }
     });
-    const text = result.text.trim().replace(/^```json?\s*/i, '').replace(/```\s*$/, '');
+    let text = result.text.trim().replace(/^```json?\s*/i, '').replace(/```\s*$/, '');
+    const start = text.indexOf('{'), end = text.lastIndexOf('}');
+    if (start >= 0 && end > start) text = text.slice(start, end + 1);
     const data = JSON.parse(text);
     if (data.error) return res.status(422).json(data);
     for (const item of [...(data.postAudits || []), ...(data.plan || []), ...(data.killers || [])]) {
       if (item.src && !ALLOWED_SOURCES.includes(item.src)) delete item.src;
     }
     data.remaining = DAILY_CAP - (used + 1);
+    if (fetched) data.profile = { name: fetched.name, handle: fetched.userName, followers: fetched.followers, fetchedLive: true };
     return res.status(200).json(data);
   } catch (err) {
     console.error('profile analyze failed:', err?.message, err?.statusCode);

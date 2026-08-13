@@ -102,7 +102,9 @@ ALLOWED_SOURCES (cite ONLY these, choose the most relevant): ${ALLOWED_SOURCES.j
         }
       }
     });
-    const text = result.text.trim().replace(/^```json?\s*/i, '').replace(/```\s*$/, '');
+    let text = result.text.trim().replace(/^```json?\s*/i, '').replace(/```\s*$/, '');
+    const start = text.indexOf('{'), end = text.lastIndexOf('}');
+    if (start >= 0 && end > start) text = text.slice(start, end + 1);
     const data = JSON.parse(text);
     if (data.error) return res.status(422).json(data);
     for (const item of [...(data.plan || []), ...(data.killers || [])]) {
