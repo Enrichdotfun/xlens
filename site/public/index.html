@@ -70,7 +70,22 @@
   .cheat .ci span{font-size:13px;color:var(--muted)}
   .disclaimer{border:1px solid var(--line);border-radius:16px;padding:14px 18px;font-size:13px;color:var(--muted);margin-top:36px}
   footer.xl-footer{border-top:1px solid var(--line);color:var(--muted);font-size:13px;padding:28px 0 48px;text-align:center;margin-top:48px}
-  @media (max-width:560px){ .weightbar .label{width:110px} .cheat{grid-template-columns:1fr} .xl-nav{padding:16px} header.xl-hero{padding:48px 0 28px} }
+  .tabs{display:flex;gap:8px;justify-content:center;margin-top:30px}
+  .tab{border:1px solid var(--line2);background:#fff;border-radius:999px;padding:10px 22px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--muted)}
+  .tab.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .search textarea{background:#fff;border:1px solid var(--line2);border-radius:16px;color:var(--ink);font-size:15px;padding:14px 18px;outline:none;width:100%;font-family:inherit;resize:vertical}
+  .search textarea:focus{border-color:var(--ink)}
+  .scorewrap{display:flex;align-items:center;gap:20px}
+  .scorenum{font-size:56px;font-weight:800;line-height:1}
+  .scorebar{flex:1;height:12px;border-radius:6px;background:rgba(18,18,18,.06);overflow:hidden}
+  .scorebar>div{height:100%;border-radius:6px;background:var(--ink)}
+  .grade{display:inline-block;font-size:11px;font-weight:800;border-radius:6px;padding:2px 8px;margin-right:8px;border:1px solid var(--line2)}
+  .grade.good{color:#1a7f37;border-color:rgba(26,127,55,.35)}
+  .grade.weak{color:var(--muted)}
+  .grade.risky{color:var(--neg);border-color:rgba(179,38,30,.35)}
+  .rewrite .before{border-left:3px solid var(--neg);padding:10px 14px;background:rgba(179,38,30,.04);border-radius:0 8px 8px 0;font-style:italic;font-size:14px}
+  .rewrite .after{border-left:3px solid #1a7f37;padding:10px 14px;background:rgba(26,127,55,.05);border-radius:0 8px 8px 0;font-style:italic;font-size:14px;margin-top:10px}
+  @media (max-width:560px){ .weightbar .label{width:110px} .cheat{grid-template-columns:1fr} .xl-nav{padding:16px} header.xl-hero{padding:48px 0 28px} .scorenum{font-size:42px} }
 </style>
 </head>
 <body>
@@ -95,7 +110,12 @@
     </div>
   </header>
 
-  <div class="search">
+  <div class="tabs">
+    <button class="tab active" id="tabTopic" onclick="setMode('topic')">Topic plan</button>
+    <button class="tab" id="tabProfile" onclick="setMode('profile')">Audit my profile</button>
+  </div>
+
+  <div class="search" id="topicForm">
     <input id="topic" type="text" placeholder="What is your X profile about? (e.g. AI startups, fitness, indie hacking)" autofocus>
     <select id="followers">
       <option value="small">Under 1,000 followers</option>
@@ -103,6 +123,19 @@
       <option value="large">Over 25,000 followers</option>
     </select>
     <button class="go" onclick="analyze()">Read the algorithm →</button>
+  </div>
+
+  <div class="search" id="profileForm" style="display:none">
+    <input id="pHandle" type="text" placeholder="@yourhandle (optional)">
+    <input id="pBio" type="text" placeholder="Your bio (optional — paste it)">
+    <textarea id="pPosts" rows="7" placeholder="Paste 5–15 of your recent posts here, one per line or separated by blank lines. X doesn't allow free automated fetching of profiles, so this 30-second copy-paste IS the data — the analysis reads your actual words."></textarea>
+    <select id="pFollowers">
+      <option value="small">Under 1,000 followers</option>
+      <option value="mid">1,000 – 25,000 followers</option>
+      <option value="large">Over 25,000 followers</option>
+    </select>
+    <button class="go" onclick="profileAnalyze()">Audit my posts against the algorithm →</button>
+    <p class="hint" id="capNote"></p>
   </div>
   <p class="hint">Doing this yourself means wading through 26 services of production Rust, Scala, and JAX.<br>We hand-verified every number at its exact line — and every claim below links to the source so you can check us.</p>
   <div class="chips">
@@ -116,6 +149,39 @@
     <span class="chip" onclick="preset('music')">music</span>
     <span class="chip" onclick="preset('travel')">travel</span>
     <span class="chip" onclick="preset('politics')">news</span>
+  </div>
+
+  <div id="profileResults" style="display:none;padding-bottom:60px">
+    <section>
+      <h2>Your algorithm alignment score</h2>
+      <p class="sub" id="pScoreReason"></p>
+      <div class="card"><div class="scorewrap"><div class="scorenum" id="pScore"></div><div class="scorebar"><div id="pScoreBar" style="width:0%"></div></div></div></div>
+    </section>
+    <section>
+      <h2>Your algorithmic profile</h2>
+      <p class="sub">Read from your actual posts, against the real weights.</p>
+      <div class="card"><p style="color:var(--ink);font-size:15px;line-height:1.6" id="pVerdict"></p></div>
+    </section>
+    <section>
+      <h2>Post-by-post audit</h2>
+      <p class="sub">What each post earns or loses under the scoring formula.</p>
+      <div id="pAudits"></div>
+    </section>
+    <section id="pRewriteSec">
+      <h2>One rewrite, algorithm-aligned</h2>
+      <p class="sub">Your post, your voice — restructured for what the ranker pays for.</p>
+      <div class="card rewrite"><div class="before" id="pBefore"></div><div class="after" id="pAfter"></div></div>
+    </section>
+    <section>
+      <h2>Your personalized plan</h2>
+      <p class="sub">Built on what you already do well.</p>
+      <div class="card" id="pPlan"></div>
+    </section>
+    <section id="pKillersSec">
+      <h2>Risks your content is currently triggering</h2>
+      <div id="pKillers"></div>
+    </section>
+    <div class="disclaimer"><strong>Honest fine print:</strong> the score is a heuristic reading of your posts against X's open-sourced default weights — it is not your real internal score, which depends on per-viewer model predictions no one outside X can see. Analyses are capped per person to keep this tool free.</div>
   </div>
 
   <div id="results">
@@ -476,6 +542,118 @@ function render(topic, size, ai){
 }
 
 document.getElementById('topic').addEventListener('keydown', e => { if(e.key==='Enter') analyze(); });
+
+// ---- Profile audit mode ----
+function setMode(m){
+  const topic = m==='topic';
+  document.getElementById('topicForm').style.display = topic?'flex':'none';
+  document.getElementById('profileForm').style.display = topic?'none':'flex';
+  document.getElementById('tabTopic').classList.toggle('active', topic);
+  document.getElementById('tabProfile').classList.toggle('active', !topic);
+  document.querySelector('.chips').style.display = topic?'flex':'none';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('profileResults').style.display = 'none';
+  if(!topic) updateCapNote();
+}
+
+const CLIENT_CAP = 3;
+function capState(){
+  const day = new Date().toISOString().slice(0,10);
+  let s = {};
+  try { s = JSON.parse(localStorage.getItem('xlens_cap')||'{}'); } catch(e){}
+  if (s.day !== day) s = {day, used:0};
+  return s;
+}
+function updateCapNote(){
+  const s = capState();
+  const left = Math.max(0, CLIENT_CAP - s.used);
+  document.getElementById('capNote').textContent =
+    left > 0 ? `${left} of ${CLIENT_CAP} free audits left today.` : `Daily audit limit reached — come back tomorrow.`;
+}
+
+async function profileAnalyze(){
+  const s = capState();
+  if (s.used >= CLIENT_CAP){ updateCapNote(); return; }
+  const posts = document.getElementById('pPosts').value.trim();
+  if (posts.length < 40){ document.getElementById('capNote').textContent = 'Paste at least a few real posts first.'; return; }
+
+  const btn = document.querySelector('#profileForm button.go');
+  btn.disabled = true; btn.textContent = 'Auditing your posts against the algorithm…';
+  try {
+    const r = await fetch(API_BASE + '/api/profile', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        handle: document.getElementById('pHandle').value.trim(),
+        bio: document.getElementById('pBio').value.trim(),
+        posts,
+        size: document.getElementById('pFollowers').value
+      })
+    });
+    const data = await r.json();
+    if (!r.ok || !data.plan) {
+      document.getElementById('capNote').textContent =
+        r.status===429 ? 'Daily limit reached — come back tomorrow.' : 'The analyzer is busy — try again in a minute.';
+      return;
+    }
+    s.used++; localStorage.setItem('xlens_cap', JSON.stringify(s));
+    renderProfile(data);
+  } catch(e) {
+    document.getElementById('capNote').textContent = 'Network error — try again.';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Audit my posts against the algorithm →';
+    updateCapNote();
+  }
+}
+
+function renderProfile(d){
+  const score = Math.max(0, Math.min(100, parseInt(d.score)||0));
+  document.getElementById('pScore').textContent = score;
+  document.getElementById('pScoreBar').style.width = score + '%';
+  document.getElementById('pScoreReason').textContent = d.scoreReason || '';
+  document.getElementById('pVerdict').textContent = d.verdict || '';
+
+  document.getElementById('pAudits').innerHTML = (d.postAudits||[]).map(a=>`
+    <div class="card">
+      <span class="grade ${esc(a.grade)}">${esc((a.grade||'').toUpperCase())}</span>
+      <span style="font-style:italic;color:var(--muted)">“${esc(a.post)}…”</span>
+      <p style="margin-top:8px"><strong>What it does:</strong> ${esc(a.issue)}</p>
+      <p style="margin-top:4px"><strong>The fix:</strong> ${esc(a.fix)}</p>
+      ${a.src ? `<a class="src" href="${GH}${esc(a.src)}" target="_blank" rel="noopener">${esc(a.src.split('#')[0])} ↗</a>` : ''}
+    </div>`).join('');
+
+  const hasRewrite = d.rewrite && d.rewrite.original && d.rewrite.better;
+  document.getElementById('pRewriteSec').style.display = hasRewrite ? 'block':'none';
+  if (hasRewrite){
+    document.getElementById('pBefore').textContent = d.rewrite.original;
+    document.getElementById('pAfter').textContent = d.rewrite.better;
+  }
+
+  document.getElementById('pPlan').innerHTML = (d.plan||[]).map((p,i)=>`
+    <div class="day">
+      <div class="num">${i+1}</div>
+      <div>
+        <h4>${esc(p.title)}</h4>
+        <p>${esc(p.desc)}</p>
+        <div class="example">${esc(p.ex)}</div>
+        <div class="why">▲ ${esc(p.why)}</div>
+        ${p.src ? `<a class="src" href="${GH}${esc(p.src)}" target="_blank" rel="noopener">${esc(p.src.split('#')[0])} ↗</a>` : ''}
+      </div>
+    </div>`).join('');
+
+  const ks = d.killers||[];
+  document.getElementById('pKillersSec').style.display = ks.length ? 'block':'none';
+  document.getElementById('pKillers').innerHTML = ks.map(k=>`
+    <div class="card">
+      <span class="badge bad">TRIGGERED</span>
+      <h3>${esc(k.t)}</h3><p>${esc(k.d)}</p>
+      ${k.src ? `<a class="src" href="${GH}${esc(k.src)}" target="_blank" rel="noopener">${esc(k.src.split('#')[0])} ↗</a>` : ''}
+    </div>`).join('');
+
+  document.getElementById('results').style.display = 'none';
+  const pr = document.getElementById('profileResults');
+  pr.style.display = 'block';
+  pr.scrollIntoView({behavior:'smooth'});
+}
 </script>
 </body>
 </html>
