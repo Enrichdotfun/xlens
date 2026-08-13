@@ -386,18 +386,42 @@ const KILLERS = [
 
 function preset(t){ document.getElementById('topic').value = t; analyze(); }
 
-function esc(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function esc(s){ const d=document.createElement('div'); d.textContent=String(s??''); return d.innerHTML; }
 
-function analyze(){
+// The AI analysis API lives on the xlens Vercel project; enrich.fun serves a static copy.
+const API_BASE = location.hostname === 'enrich.fun' ? 'https://xlens-rho.vercel.app' : '';
+
+async function analyze(){
   const topic = document.getElementById('topic').value.trim() || "your topic";
   const size = document.getElementById('followers').value;
-  const niche = matchNiche(topic);
+  const btn = document.querySelector('button.go');
+  btn.disabled = true; btn.textContent = `Reading the algorithm for “${topic.slice(0,40)}”…`;
 
-  document.getElementById('verdictTitle').textContent = `The algorithm × ${niche.label}`;
+  let ai = null;
+  try {
+    const r = await fetch(API_BASE + '/api/analyze', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({topic, size})
+    });
+    if (r.ok) ai = await r.json();
+    if (ai && (!Array.isArray(ai.plan) || ai.plan.length < 5)) ai = null;
+  } catch(e){ /* offline fallback below */ }
+
+  btn.disabled = false; btn.textContent = 'Read the algorithm →';
+  render(topic, size, ai);
+}
+
+function render(topic, size, ai){
+  const niche = matchNiche(topic);
+  const label = ai?.label || niche.label;
+
+  document.getElementById('verdictTitle').textContent = `The algorithm × ${label}`;
   document.getElementById('verdictCard').innerHTML =
-    `<p style="color:var(--ink);font-size:15px;line-height:1.6">${esc(niche.verdict)}</p>
-     <h3 style="margin-top:14px">Formats that win in ${esc(niche.label)}</h3>
-     <p>${esc(niche.formats)}</p>`;
+    `<p style="color:var(--ink);font-size:15px;line-height:1.6">${esc(ai?.verdict || niche.verdict)}</p>
+     <h3 style="margin-top:14px">Formats that win</h3>
+     <p>${esc(ai?.formats || niche.formats)}</p>` +
+    (ai?.schedule ? `<h3 style="margin-top:14px">Your cadence</h3><p>${esc(ai.schedule)}</p>` : '') +
+    `<p style="margin-top:12px;font-size:12px;color:var(--muted)">${ai ? 'Generated fresh for this exact topic, grounded in the extracted algorithm rules.' : 'Built-in analysis from the extracted ruleset (live analyzer unreachable — try again for a fully topic-specific read).'}</p>`;
 
   const maxAbs = 234;
   document.getElementById('weightsCard').innerHTML = WEIGHTS.map(w=>{
@@ -410,7 +434,8 @@ function analyze(){
   }).join('') + `<a class="src" href="${GH}home-mixer/params/param.rs" target="_blank" rel="noopener">home-mixer/params/param.rs ↗</a>`;
 
   document.getElementById('planTitle').textContent = `Your content plan: ${topic}`;
-  document.getElementById('planCard').innerHTML = planFor(topic, niche).map((p,i)=>`
+  const plan = (ai?.plan) || planFor(topic, niche);
+  document.getElementById('planCard').innerHTML = plan.map((p,i)=>`
     <div class="day">
       <div class="num">${i+1}</div>
       <div>
@@ -418,7 +443,7 @@ function analyze(){
         <p>${esc(p.desc)}</p>
         <div class="example">${esc(p.ex)}</div>
         <div class="why">▲ ${esc(p.why)}</div>
-        <a class="src" href="${GH}${p.src}" target="_blank" rel="noopener">${p.src.split('#')[0]} ↗</a>
+        ${p.src ? `<a class="src" href="${GH}${esc(p.src)}" target="_blank" rel="noopener">${esc(p.src.split('#')[0])} ↗</a>` : ''}
       </div>
     </div>`).join('');
 
@@ -438,12 +463,12 @@ function analyze(){
       <a class="src" href="${GH}${k.src}" target="_blank" rel="noopener">${k.src.split('#')[0]} ↗</a>
     </div>`).join('');
 
-  const nicheKillers = (niche.killers||[]).map(k=>({...k, niche:true}));
-  document.getElementById('killerCards').innerHTML = nicheKillers.concat(KILLERS).map(k=>`
+  const topicKillers = ((ai?.killers) || niche.killers || []).map(k=>({...k, niche:true}));
+  document.getElementById('killerCards').innerHTML = topicKillers.concat(KILLERS).map(k=>`
     <div class="card">
-      <span class="badge bad">${k.niche?'AVOID · '+esc(niche.label).toUpperCase():'AVOID'}</span>
+      <span class="badge bad">${k.niche?'AVOID · '+esc(label).toUpperCase():'AVOID'}</span>
       <h3>${esc(k.t)}</h3><p>${esc(k.d)}</p>
-      <a class="src" href="${GH}${k.src}" target="_blank" rel="noopener">${k.src.split('#')[0]} ↗</a>
+      ${k.src ? `<a class="src" href="${GH}${esc(k.src)}" target="_blank" rel="noopener">${esc(k.src.split('#')[0])} ↗</a>` : ''}
     </div>`).join('');
 
   document.getElementById('results').style.display = 'block';
