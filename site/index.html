@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>X Lens — content plans from X's real algorithm</title>
+<meta name="description" content="Enter your topic. X Lens reads X's open-source algorithm and gives you a content plan built on the actual ranking weights — every recommendation cited to source code.">
+<style>
+  :root{
+    --bg:#000000; --panel:#0a0a0a; --panel2:#111214; --border:#1f2225;
+    --text:#e7e9ea; --muted:#71767b; --accent:#1d9bf0; --good:#00ba7c;
+    --bad:#f4212e; --warn:#ffd400; --radius:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:680px;margin:0 auto;padding:0 20px}
+  header{padding:64px 0 40px;text-align:center}
+  .logo{font-size:44px;font-weight:800;letter-spacing:-1.5px}
+  .logo .x{color:var(--accent)}
+  .tagline{color:var(--muted);margin-top:10px;font-size:17px}
+  .tagline a{color:var(--accent);text-decoration:none}
+  .search{margin:36px 0 12px;display:flex;flex-direction:column;gap:12px}
+  .search input,.search select{background:var(--panel2);border:1px solid var(--border);border-radius:999px;color:var(--text);font-size:17px;padding:16px 24px;outline:none;width:100%;appearance:none}
+  .search input:focus{border-color:var(--accent)}
+  .row{display:flex;gap:12px}
+  .row select{flex:1}
+  button.go{background:var(--accent);border:none;border-radius:999px;color:#fff;font-size:17px;font-weight:700;padding:16px;cursor:pointer;width:100%;transition:filter .15s}
+  button.go:hover{filter:brightness(1.1)}
+  .hint{color:var(--muted);font-size:13px;text-align:center;margin-bottom:8px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:14px}
+  .chip{background:var(--panel2);border:1px solid var(--border);border-radius:999px;color:var(--muted);font-size:13px;padding:6px 14px;cursor:pointer}
+  .chip:hover{color:var(--text);border-color:var(--accent)}
+  #results{display:none;padding-bottom:80px}
+  section{margin-top:40px}
+  h2{font-size:22px;font-weight:800;margin-bottom:4px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:16px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:12px}
+  .card h3{font-size:16px;font-weight:700;margin-bottom:4px}
+  .card p{color:var(--muted);font-size:14px}
+  .card .example{color:var(--text);font-size:14px;background:var(--panel2);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:10px 14px;margin-top:10px;font-style:italic}
+  .src{display:inline-block;margin-top:10px;font-size:12px;color:var(--muted);text-decoration:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .src:hover{color:var(--accent)}
+  .badge{display:inline-block;font-size:12px;font-weight:700;border-radius:6px;padding:2px 8px;margin-bottom:8px}
+  .badge.good{background:rgba(0,186,124,.12);color:var(--good)}
+  .badge.bad{background:rgba(244,33,46,.12);color:var(--bad)}
+  .badge.warn{background:rgba(255,212,0,.1);color:var(--warn)}
+  .weightbar{display:flex;align-items:center;gap:10px;margin:6px 0}
+  .weightbar .label{width:150px;font-size:13px;color:var(--muted);flex-shrink:0;text-align:right}
+  .weightbar .bar{height:10px;border-radius:5px;background:var(--accent);min-width:2px}
+  .weightbar .bar.neg{background:var(--bad)}
+  .weightbar .val{font-size:12px;color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .day{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--border)}
+  .day:last-child{border-bottom:none}
+  .day .num{width:44px;height:44px;border-radius:50%;background:var(--panel2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--accent);flex-shrink:0;font-size:13px}
+  .day h4{font-size:15px;font-weight:700}
+  .day p{color:var(--muted);font-size:14px}
+  .day .why{font-size:12px;color:var(--accent);margin-top:2px}
+  footer{border-top:1px solid var(--border);color:var(--muted);font-size:13px;padding:28px 0 48px;text-align:center}
+  footer a{color:var(--accent);text-decoration:none}
+  .disclaimer{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;font-size:13px;color:var(--muted);margin-top:36px}
+  @media (max-width:520px){ .weightbar .label{width:110px} header{padding:40px 0 24px} .logo{font-size:34px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo"><span class="x">X</span> Lens</div>
+    <p class="tagline">X open-sourced <a href="https://github.com/xai-org/x-algorithm" target="_blank" rel="noopener">its algorithm</a>. We read the code so you don't have to.<br>Enter your topic — get a content plan built on the real ranking weights.</p>
+  </header>
+
+  <div class="search">
+    <input id="topic" type="text" placeholder="What is your X profile about? (e.g. AI startups, fitness, indie hacking)" autofocus>
+    <div class="row">
+      <select id="followers">
+        <option value="small">Under 1,000 followers</option>
+        <option value="mid">1,000 – 25,000 followers</option>
+        <option value="large">Over 25,000 followers</option>
+      </select>
+    </div>
+    <button class="go" onclick="analyze()">Read the algorithm →</button>
+  </div>
+  <p class="hint">Every recommendation cites the exact file &amp; line in xai-org/x-algorithm.</p>
+  <div class="chips">
+    <span class="chip" onclick="preset('AI startups')">AI startups</span>
+    <span class="chip" onclick="preset('fitness')">fitness</span>
+    <span class="chip" onclick="preset('crypto')">crypto</span>
+    <span class="chip" onclick="preset('indie hacking')">indie hacking</span>
+    <span class="chip" onclick="preset('design')">design</span>
+  </div>
+
+  <div id="results">
+    <section id="s-weights">
+      <h2>What the algorithm actually pays for</h2>
+      <p class="sub">Your post's score = predicted probability of each action × these exact weights, straight from <code>home-mixer/params/param.rs</code>.</p>
+      <div class="card" id="weightsCard"></div>
+    </section>
+
+    <section id="s-plan">
+      <h2 id="planTitle"></h2>
+      <p class="sub">Seven post archetypes, ordered by algorithmic value, adapted to your topic.</p>
+      <div class="card" id="planCard"></div>
+    </section>
+
+    <section id="s-boosts">
+      <h2>Your unfair advantages</h2>
+      <p class="sub" id="boostSub"></p>
+      <div id="boostCards"></div>
+    </section>
+
+    <section id="s-discovery">
+      <h2>How discovery actually works</h2>
+      <p class="sub">The mechanics behind reaching people who don't follow you — this is where most creators lose.</p>
+      <div id="discoveryCards"></div>
+    </section>
+
+    <section id="s-killers">
+      <h2>Reach killers to avoid</h2>
+      <p class="sub">These are the documented ways posts and accounts silently lose distribution.</p>
+      <div id="killerCards"></div>
+    </section>
+
+    <div class="disclaimer">
+      <strong>Honest fine print:</strong> weights shown are X's open-sourced defaults (synced Aug 2026). They're live-tunable server-side and the final score also depends on the model's per-user predictions. X Lens tells you what the system rewards — it can't guarantee outcomes. Source: <a href="https://github.com/xai-org/x-algorithm" target="_blank" rel="noopener" style="color:var(--accent)">xai-org/x-algorithm</a>.
+    </div>
+  </div>
+
+  <footer>
+    Built from <a href="https://github.com/xai-org/x-algorithm" target="_blank" rel="noopener">xai-org/x-algorithm</a> · not affiliated with X Corp · <a href="https://enrich.fun" >enrich.fun</a>
+  </footer>
+</div>
+
+<script>
+const GH = "https://github.com/xai-org/x-algorithm/blob/main/";
+
+const WEIGHTS = [
+  {name:"Copy-link share", v:20,  src:"home-mixer/params/param.rs#L325"},
+  {name:"Reply",           v:5,   src:"home-mixer/params/param.rs#L283"},
+  {name:"Quote post",      v:5,   src:"home-mixer/params/param.rs#L332"},
+  {name:"Share via DM",    v:5,   src:"home-mixer/params/param.rs#L319"},
+  {name:"New follow",      v:4,   src:"home-mixer/params/param.rs#L346"},
+  {name:"Share",           v:2,   src:"home-mixer/params/param.rs#L318"},
+  {name:"Retweet",         v:1,   src:"home-mixer/params/param.rs#L296"},
+  {name:"Like",            v:0.5, src:"home-mixer/params/param.rs#L282"},
+  {name:"Link click",      v:0.2, src:"home-mixer/params/param.rs#L310"},
+  {name:"Report",          v:-234,  src:"home-mixer/params/param.rs#L442"},
+  {name:"Mute",            v:-58.8, src:"home-mixer/params/param.rs#L436"},
+  {name:"Not interested",  v:-43.2, src:"home-mixer/params/param.rs#L424"},
+  {name:"Block",           v:-31.2, src:"home-mixer/params/param.rs#L430"},
+];
+
+function planFor(topic){
+  const t = topic.trim();
+  return [
+    {title:`The save-worthy resource`, why:`Copy-link shares weigh +20 — 40× a like`, src:"home-mixer/params/param.rs#L325",
+     desc:`Post something about ${t} people will want to send to a friend or save: a checklist, a tool list, a mistakes-to-avoid breakdown. Optimize for "I need to send this to someone."`,
+     ex:`"The 7 ${t} mistakes I see everyone make (and what to do instead):"`},
+    {title:`The conversation starter`, why:`Replies weigh +5 — 10× a like`, src:"home-mixer/params/param.rs#L283",
+     desc:`Ask a genuinely divisive-but-friendly question about ${t}. The goal is replies, not likes — and reply to every reply, since conversations from mutuals get a further 4× boost.`,
+     ex:`"Hot take: most ${t} advice is wrong about one thing. What's the one rule you ignore?"`},
+    {title:`The quotable claim`, why:`Quotes weigh +5`, src:"home-mixer/params/param.rs#L332",
+     desc:`Make a strong, specific claim about ${t} that people will quote to agree or push back. Vague takes get likes; sharp takes get quoted.`,
+     ex:`"Unpopular opinion about ${t}: [specific, defensible claim]"`},
+    {title:`The DM-worthy insider note`, why:`DM shares weigh +5`, src:"home-mixer/params/param.rs#L319",
+     desc:`Share something about ${t} that feels like insider knowledge — the kind of post someone DMs to their group chat with "have you seen this?"`,
+     ex:`"Nobody talks about this in ${t}, but here's what's actually happening behind the scenes…"`},
+    {title:`The follow trigger`, why:`Follows from a post weigh +4 — 8× a like`, src:"home-mixer/params/param.rs#L346",
+     desc:`Periodically post the "why you should follow me" piece: your best ${t} insight plus a hint there's more coming. This converts viewers into followers, which the ranker rewards directly.`,
+     ex:`"I've spent [X years] doing ${t}. Here are the 5 things that actually mattered — I post one deep dive a week."`},
+    {title:`The original thread (not a reply)`, why:`Replies/retweets take a 0.75× haircut; only original posts reach non-followers`, src:"home-mixer/filters/oon_retweet_reply_filter.rs#L13",
+     desc:`Package your best ${t} thinking as original posts. Your replies and retweets literally cannot appear in non-followers' For You feeds — original posts are the only vehicle for discovery.`,
+     ex:`Turn your best reply of the week into a standalone post.`},
+    {title:`The 10-second-plus video`, why:`Video credit only counts past 10s; dwell time accrues +0.004/sec`, src:"home-mixer/params/param.rs#L677",
+     desc:`If you use video for ${t}, make it longer than 10 seconds (shorter earns zero video credit) and front-load a hook — held attention accumulates score every second.`,
+     ex:`A 45-second "here's exactly how I do X" screen recording beats a 8-second clip.`},
+  ];
+}
+
+const BOOSTS = {
+  small: [
+    {b:"good", t:"You qualify for the small-account boost", src:"home-mixer/scorers/author_cold_start.rs#L86",
+     d:"One post per feed load from an author with ≤1,000 followers and under 1,000 views gets lifted to slot ~15-16 — but only posts under 24h old that already score decently. Post consistently; the algorithm is literally reserving a seat for you."},
+    {b:"good", t:"Post original content in a tight niche", src:"home-mixer/params/param.rs#L246",
+     d:"Out-of-network posts are scored at 75% — you need every point. Staying consistent on one topic helps the interest-matching system (SimClusters) place you in the right communities."},
+    {b:"warn", t:"Space your posts out", src:"home-mixer/params/param.rs#L228",
+     d:"Your 2nd post in someone's feed load is worth ~62%, the 3rd ~44%. Two great posts a day beat six mediocre ones."}
+  ],
+  mid: [
+    {b:"good", t:"Build real mutuals in your niche", src:"home-mixer/params/param.rs#L284",
+     d:"Original posts from authors who mutually follow the viewer get their reply weight boosted from 5 to 20 — a 4× conversation multiplier. Follow back the people who consistently engage."},
+    {b:"good", t:"Credibility is PageRank — quality follows matter", src:"user-cred-v2/UserCredV2App.scala#L195",
+     d:"Your credibility score comes from who follows and engages with you, and a like from a selective account counts more. 100 engaged niche followers beat 10,000 passive ones."},
+    {b:"warn", t:"You're in automated-moderation territory", src:"botmaker-rules/scarecrow/derived-feature/IsHighPageRankUser.df",
+     d:"Accounts under ~25k followers / credibility 54 face automated spam and NSFW labeling with no human review. Keep links clean and avoid anything that pattern-matches to spam."}
+  ],
+  large: [
+    {b:"good", t:"You're likely exempt from automated demotion", src:"botmaker-rules/scarecrow/derived-feature/IsHighPageRankUser.df",
+     d:"Accounts over ~25k followers or credibility ≥54 are exempt from nearly all automated spam/NSFW labeling — flagged content goes to human review instead."},
+    {b:"good", t:"Your engagement passes credibility to others", src:"user-cred-v2/UserCredV2App.scala#L79",
+     d:"Your likes and retweets transfer credibility mass to smaller accounts — engagement from you is a real gift, and being selective keeps your own signal strong."},
+    {b:"warn", t:"Virality triggers AI review", src:"grox/flows/ptos/constants.py#L1",
+     d:"Posts get LLM safety/quality review once they gain traction (high-fav bucket starts at 128 likes). At your scale, assume every big post is machine-reviewed for policy and 'slop' quality."}
+  ]
+};
+
+const DISCOVERY = [
+  {t:"Your first hours decide your audience", d:"A post's community identity is computed live from whoever likes it, with an 8-hour half-life. If your early likers are all in your niche, the post gets a clean community signal and travels to similar users; scattered early engagement muddies it. Post when YOUR niche is online.", src:"simclusters/simclusters_v2/summingbird/storm/TweetJob.scala#L59"},
+  {t:"8 likes to unlock discovery", d:"A post needs at least 8 likes before it enters the community-discovery index at all. Your engaged core followers getting you past that threshold quickly is what opens the door to strangers' feeds.", src:"simclusters/simclusters_v2/summingbird/common/Configs.scala#L39"},
+  {t:"~400 active followers = you join the map", d:"The weekly community-clustering job only assigns creators with roughly 400+ active followers to X's ~145,000 interest communities. Below that, community-based discovery barely knows you exist — one more reason the first 400 real followers in one niche matter most.", src:"simclusters/simclusters_v2/scalding/update_known_for/UpdateKnownFor20M145K2020.scala#L38"},
+  {t:"Likes are weak for ranking but they ARE discovery", d:"Likes weigh just 0.5 in ranking — but the retrieval model that fetches posts for new audiences is trained on likes as its positive signal. Likes open the door; replies and shares win the room.", src:"phoenix/xrex/configs/xrecsys_two_tower.py#L280"},
+  {t:"Negative feedback follows you, not just the post", d:"Reports, mutes, blocks and 'not interested' are hard negatives in retrieval training — they teach the system to stop fetching content like yours for those audiences. One bad post can quietly narrow your future reach.", src:"phoenix/xrex/models/recsys_two_tower_model.py#L1599"},
+  {t:"Nobody is guaranteed to see you — not even followers", d:"~1,200 in-network posts compete against ~1,800 out-of-network candidates in one ranker with no follower quota. Every impression is won on score, which is why the engagement weights above are the whole game.", src:"home-mixer/params/param.rs#L4"},
+  {t:"The model watches everything", d:"The action vocabulary includes screenshots, translate clicks, photo expands, and how many seconds people stay on links you share. 'Silent' engagement like screenshots and long dwell counts — genuinely useful content wins even without likes.", src:"phoenix/crates/serving/xai-recsys-proto/proto/recsys.proto#L229"}
+];
+
+const KILLERS = [
+  {t:"Rage-bait and report-bait", d:"A report weighs −234 — one predicted report outweighs ~468 likes, and a 'not interested' costs ~86. Content that angers even a small slice of viewers scores below zero and gets squashed to the bottom.", src:"home-mixer/params/param.rs#L442"},
+  {t:"Engagement-bait ('like if…', 'repost this')", d:"SpamEngagementBaiting and SpamEngagementFarming are explicit LLM-detected policy violation categories. The classifier reads your post — it knows.", src:"grox/flows/ptos/state.py#L11"},
+  {t:"Sketchy links", d:"One UNSAFE-verdict URL gets a post search-blacklisted, de-amplified, and flagged — retroactively across every post that ever shared that link. Low-quality links while tagging strangers get spam-labeled too.", src:"botmaker-rules/scarecrow/bot/rtf_tweets_on_unsafe_verdict.bot#L19"},
+  {t:"Copy-paste content", d:"Text that matches what many other accounts post gets labeled COPYPASTA_SPAM and downranked. Same for AI slop — accounts posting mostly generated slop get a 30-day account-wide recommendations ban.", src:"botmaker-rules/scarecrow/bot/BBQDuplicateTextProd.bot#L37"},
+  {t:"External links as the main event", d:"Link clicks weigh just +0.2 — the weakest positive signal. Deliver value in the post itself; put the link in a reply or your profile.", src:"home-mixer/params/param.rs#L310"},
+  {t:"Reply-guy spam", d:"Replies scoring ≥0.97 on the spam model get buried in threads for 14 days, and rapid-fire reply patterns are one of the seven bot behaviors the behavioral transformer explicitly detects.", src:"botmaker-rules/scarecrow/bot/GroxTweetProcessor.bot#L5"},
+  {t:"The silent shadowban pattern", d:"Most penalties don't hide posts from your followers — they remove you from non-followers' For You feeds only. If followers engage but reach died, you likely carry a label. Most expire in 7–30 days if behavior changes.", src:"visibility-filtering/rules/registry.rs#L138"},
+  {t:"Posting older than the window", d:"Posts over 48 hours old are dropped from For You entirely. Your content has a 2-day algorithmic lifespan — consistency beats perfection.", src:"home-mixer/params/config.rs#L36"}
+];
+
+function preset(t){ document.getElementById('topic').value = t; analyze(); }
+
+function esc(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+function analyze(){
+  const topic = document.getElementById('topic').value.trim() || "your topic";
+  const size = document.getElementById('followers').value;
+
+  // weights chart
+  const maxAbs = 234;
+  document.getElementById('weightsCard').innerHTML = WEIGHTS.map(w=>{
+    const pct = Math.max(1.2, Math.sqrt(Math.abs(w.v)/maxAbs)*100);
+    return `<div class="weightbar">
+      <div class="label">${w.name}</div>
+      <div class="bar ${w.v<0?'neg':''}" style="width:${pct}%"></div>
+      <div class="val">${w.v>0?'+':''}${w.v}</div>
+    </div>`;
+  }).join('') + `<a class="src" href="${GH}home-mixer/params/param.rs" target="_blank" rel="noopener">home-mixer/params/param.rs ↗</a>`;
+
+  // plan
+  document.getElementById('planTitle').textContent = `Your content plan: ${topic}`;
+  document.getElementById('planCard').innerHTML = planFor(topic).map((p,i)=>`
+    <div class="day">
+      <div class="num">${i+1}</div>
+      <div>
+        <h4>${esc(p.title)}</h4>
+        <p>${esc(p.desc)}</p>
+        <div class="example">${esc(p.ex)}</div>
+        <div class="why">▲ ${esc(p.why)}</div>
+        <a class="src" href="${GH}${p.src}" target="_blank" rel="noopener">${p.src.split('#')[0]} ↗</a>
+      </div>
+    </div>`).join('');
+
+  // boosts
+  const subs = {small:"Based on your size: under 1,000 followers.", mid:"Based on your size: 1,000–25,000 followers.", large:"Based on your size: over 25,000 followers."};
+  document.getElementById('boostSub').textContent = subs[size];
+  document.getElementById('boostCards').innerHTML = BOOSTS[size].map(b=>`
+    <div class="card">
+      <span class="badge ${b.b}">${b.b==='good'?'ADVANTAGE':'WATCH OUT'}</span>
+      <h3>${esc(b.t)}</h3><p>${esc(b.d)}</p>
+      <a class="src" href="${GH}${b.src}" target="_blank" rel="noopener">${b.src.split('#')[0]} ↗</a>
+    </div>`).join('');
+
+  // discovery
+  document.getElementById('discoveryCards').innerHTML = DISCOVERY.map(k=>`
+    <div class="card">
+      <span class="badge good">MECHANIC</span>
+      <h3>${esc(k.t)}</h3><p>${esc(k.d)}</p>
+      <a class="src" href="${GH}${k.src}" target="_blank" rel="noopener">${k.src.split('#')[0]} ↗</a>
+    </div>`).join('');
+
+  // killers
+  document.getElementById('killerCards').innerHTML = KILLERS.map(k=>`
+    <div class="card">
+      <span class="badge bad">AVOID</span>
+      <h3>${esc(k.t)}</h3><p>${esc(k.d)}</p>
+      <a class="src" href="${GH}${k.src}" target="_blank" rel="noopener">${k.src.split('#')[0]} ↗</a>
+    </div>`).join('');
+
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('s-weights').scrollIntoView({behavior:'smooth'});
+}
+
+document.getElementById('topic').addEventListener('keydown', e => { if(e.key==='Enter') analyze(); });
+</script>
+</body>
+</html>
